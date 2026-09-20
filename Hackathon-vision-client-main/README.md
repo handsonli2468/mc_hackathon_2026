@@ -76,16 +76,16 @@ colcon build --packages-select object_tracker
 **合併版（相機 + 追蹤 + VLM client 一起起來，部署用這個）**
 
 ```bash
-ros2 launch object_tracker mask_tracker_vlm_bringup.launch.py \
-  world_frame:=camera_color_optical_frame debug.img:=true
+ros2 launch object_tracker mask_tracker_vlm_bringup.launch.py debug.img:=true
 ```
+
+輸出座標系預設是 `map`（params 檔的 `world_frame`），需要機器人端提供 `map` 到 `camera_link` 的 TF。沒有 TF 的桌面測試加上 `world_frame:=camera_color_optical_frame`，輸出就是相機座標。
 
 **分開版（tracker 和 VLM bridge 各跑一個 process）**
 
 ```bash
 # terminal 1
-ros2 launch object_tracker mask_tracker_bringup.launch.py \
-  world_frame:=camera_color_optical_frame debug.img:=true
+ros2 launch object_tracker mask_tracker_bringup.launch.py debug.img:=true
 # terminal 2
 ros2 launch object_tracker vlm_bridge.launch.py vlm.endpoint:=tcp://192.168.50.125:5555
 ```
@@ -119,7 +119,7 @@ ros2 run rqt_image_view rqt_image_view /tracked_object/debug_image/compressed
 | `/tracked_object/size` | `geometry_msgs/Vector3Stamped` | 每次 VLM 回應 | x=寬 y=高 z=深度（公尺），reliable + transient_local |
 | `/tracked_object/debug_image` | `sensor_msgs/Image` | ≤ 5 Hz | `debug.img:=true` 才發；`.../compressed` 適合無線看 |
 
-TF：`debug.enable` 開啟時會廣播 `tracked_object`。輸出座標需要機器人端提供 `world_frame` 到 `camera_link` 的 TF；桌面測試可以用 `cam_tf.enable:=true` 自己發一個 static TF。
+TF：`debug.enable` 開啟時會廣播 `tracked_object`。`world_frame` 預設 `map`，需要機器人端提供 `map` 到 `camera_link` 的 TF；桌面測試可以改用 `world_frame:=camera_color_optical_frame`，或用 `cam_tf.enable:=true` 自己發一個 static TF。
 
 ---
 

@@ -8,7 +8,7 @@
     camera_info_topic: "/camera_duck/camera/color/camera_info"
     output_topic: "/object_goal_pose"
     # Output frame; camera_color_optical_frame for bench tests, map on the robot
-    world_frame: "camera_color_optical_frame"
+    world_frame: "map"
 
     # Mask init: mono8, same size as color, non-zero = object, header.stamp = stamp of the color frame it belongs to
     mask_topic: "/tracked_object/init_mask"

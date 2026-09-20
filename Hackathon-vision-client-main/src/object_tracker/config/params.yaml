@@ -11,7 +11,7 @@
     # Output frame of /tracked_object/point
     # Debugging: camera_color_optical_frame (x right, y down, z forward = depth), needs no external TF
     # On the robot: map (hold / jump checks assume a world-fixed frame)
-    world_frame: "camera_color_optical_frame"
+    world_frame: "map"
 
     # ORB + matching
     orb.n_features: 1000       # target image and ROI search
