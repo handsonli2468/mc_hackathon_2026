@@ -1,0 +1,8 @@
+# Server: /rotate_in_place  (owner: navigation)
+# Positive = counter-clockwise.
+float32 angle_rad
+---
+bool success
+string message
+---
+float32 angle_remaining

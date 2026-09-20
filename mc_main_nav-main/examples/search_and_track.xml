@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<!-- Patrol until the camera finds the object, then drive to it and close the gripper.
+
+     Nothing custom about the control flow: ReactiveFallback re-ticks IsObjectFound every
+     tick, and while it fails the patrol keeps running. The moment the camera says it has
+     seen the object, the fallback halts the patrol and succeeds, and the sequence moves on.
+     Swap Patrol for any other search (a Repeat of RotateInPlace, a few NavigateToPoints)
+     without touching the rest. -->
+<root BTCPP_format="4" main_tree_to_execute="search_and_track">
+  <BehaviorTree ID="search_and_track">
+    <Sequence name="search_and_track">
+
+      <SetGripper name="open_gripper" position="0"/>
+      <VisualizeObject name="start_looking" object_name="the white paper cup"/>
+
+      <ReactiveFallback name="search_until_found">
+        <IsObjectFound name="found_it" object_name="the white paper cup"/>
+        <Patrol name="patrol_middle"/>
+      </ReactiveFallback>
+
+      <NavigateToDetectedObject name="drive_to_cup" standoff="0.05"/>
+      <SetGripper name="close_gripper" position="100"/>
+
+    </Sequence>
+  </BehaviorTree>
+</root>

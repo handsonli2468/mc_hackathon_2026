@@ -1,0 +1,11 @@
+# Server: /navigate_to_object  (owner: navigation)
+# Drive next to a previously detected object.
+string object_name
+# How close to stop: metres from the robot's front edge to the object's centre.
+# <= 0 -> the server's default.
+float32 stop_distance
+---
+bool success
+string message
+---
+float32 distance_remaining

@@ -1,0 +1,8 @@
+# Server: /set_gripper  (owner: manipulation)
+# How far the jaws are closed: 0 = fully open, 100 = fully closed.
+int32 position
+---
+bool success
+string message
+---
+string status

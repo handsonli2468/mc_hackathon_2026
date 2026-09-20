@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!-- Search by turning on the spot instead of driving a patrol: for when the object is
+     expected to be somewhere around the robot rather than elsewhere on the field. -->
+<root BTCPP_format="4" main_tree_to_execute="find_and_grab_cup">
+  <BehaviorTree ID="find_and_grab_cup">
+    <Sequence name="find_and_grab_cup">
+
+      <SetGripper name="open_gripper" position="0"/>
+      <VisualizeObject name="start_looking" object_name="the white paper cup"/>
+
+      <ReactiveFallback name="turn_until_found">
+        <IsObjectFound name="found_it" object_name="the white paper cup"/>
+        <Repeat name="keep_turning" num_cycles="-1">
+          <RotateInPlace name="turn_a_little" angle_deg="45"/>
+        </Repeat>
+      </ReactiveFallback>
+
+      <NavigateToDetectedObject name="drive_to_cup" standoff="0.05"/>
+      <SetGripper name="close_gripper" position="100"/>
+
+    </Sequence>
+  </BehaviorTree>
+</root>

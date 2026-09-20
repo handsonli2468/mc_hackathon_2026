@@ -1,0 +1,148 @@
+# Usage (from repo root)
+#
+# PC (mini PC / dev PC), image mc-main-nav:pc:
+#   docker compose -f docker/compose.yaml build dev
+#   docker compose -f docker/compose.yaml run --rm dev ./scripts/build.sh
+#   docker compose -f docker/compose.yaml up -d engine mocks map
+#
+# Robot Raspberry Pi, image mc-main-nav:robot (Nav2 only, no BT.CPP / RViz):
+#   docker compose -f docker/compose.yaml --profile robot build nav
+#   docker compose -f docker/compose.yaml --profile robot run --rm build-robot
+#   docker compose -f docker/compose.yaml --profile robot up -d nav
+name: mc-main-nav
+
+# GUI (RViz) from containers: the host X server is shared. On Wayland desktops
+# XAUTHORITY is set by the session (e.g. /run/user/1000/.mutter-Xwaylandauth.*).
+x-gui: &gui
+  DISPLAY: ${DISPLAY:-:0}
+  XAUTHORITY: /tmp/.docker.xauth
+  QT_X11_NO_MITSHM: "1"
+  ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-59}
+  RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+
+x-gui-volumes: &gui-volumes
+  - ..:/home/main/mc_main_nav
+  - /tmp/.X11-unix:/tmp/.X11-unix
+  - ${XAUTHORITY:-~/.Xauthority}:/tmp/.docker.xauth:ro
+
+x-common: &common
+  image: mc-main-nav:pc
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: pc
+  network_mode: host   # DDS discovery + HTTP port without mapping
+  ipc: host
+  volumes:
+    - ..:/home/main/mc_main_nav
+  environment:
+    - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-59}
+    - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
+services:
+  dev:
+    <<: *common
+    stdin_open: true
+    tty: true
+
+  engine:
+    <<: *common
+    command: ./scripts/run_engine.sh
+    restart: ${RESTART_POLICY:-no}
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-59}
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      # The mini PC already runs the VLM server on 8080; set ENGINE_PORT=8090 there.
+      - ENGINE_PORT=${ENGINE_PORT:-8080}
+      # Set when the engine is reachable from the internet: the API then needs this token.
+      - BT_ENGINE_TOKEN=${BT_ENGINE_TOKEN:-}
+      # The camera team's HTTP service, used by VisualizeObject / IsObjectFound.
+      - CAMERA_BASE_URL=${CAMERA_BASE_URL:-}
+
+  mocks:
+    <<: *common
+    command: ./scripts/run_mocks.sh
+    restart: ${RESTART_POLICY:-no}
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-59}
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      # With the nav profile, set MOCK_DISABLE=navigate_to_object,rotate_in_place,is_at_object
+      - MOCK_DISABLE=${MOCK_DISABLE:-}
+      # The fake world, kept across restarts: "name:x:y,name:x:y" in the map frame.
+      - MOCK_OBJECTS=${MOCK_OBJECTS:-}
+
+  # Table map + obstacle web UI (mini PC): http://<host>:8081/
+  map:
+    <<: *common
+    command: ./scripts/run_map.sh
+    restart: ${RESTART_POLICY:-no}
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-59}
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - TABLE_MAP_TOKEN=${TABLE_MAP_TOKEN:-}
+
+  # Simulated robot (fake motors + fake global camera) + Nav2 + diff_nav:
+  #   MOCK_DISABLE=navigate_to_object,rotate_in_place,is_at_object \
+  #     docker compose -f docker/compose.yaml --profile sim up -d engine mocks map nav-sim
+  nav-sim:
+    <<: *common
+    profiles: [sim]
+    command: ./scripts/run_nav.sh sim use_rviz:=${USE_RVIZ:-false}
+    environment: *gui
+    volumes: *gui-volumes
+
+  # RViz on a PC, for the simulator or the real robot (same ROS_DOMAIN_ID):
+  #   docker compose -f docker/compose.yaml run --rm rviz
+  rviz:
+    <<: *common
+    profiles: [gui]
+    command: bash -c "source /opt/ros/humble/setup.bash && source ws/install/setup.bash && ros2 launch diff_nav rviz.launch.py"
+    environment: *gui
+    volumes: *gui-volumes
+
+  # ---- robot Raspberry Pi (image mc-main-nav:robot) ----
+  # pose_bridge + Nav2 + diff_nav (motor driver and global camera run separately).
+  nav:
+    <<: *common
+    image: mc-main-nav:robot
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: robot
+    profiles: [robot]
+    command: ./scripts/run_nav.sh robot
+    restart: ${RESTART_POLICY:-no}
+
+  # Fake robot + fake global camera on the Pi, for testing Nav2 there without hardware
+  # (the real motor driver and camera replace this).
+  sim-base:
+    <<: *common
+    image: mc-main-nav:robot
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: robot
+    profiles: [robot]
+    command: bash -c "source /opt/ros/humble/setup.bash && source ws/install/setup.bash && ros2 run diff_nav sim_base"
+
+  # Fake onboard camera (relative detections) for testing TrackObject without hardware.
+  sim-camera:
+    <<: *common
+    image: mc-main-nav:robot
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: robot
+    profiles: [robot]
+    command: bash -c "source /opt/ros/humble/setup.bash && source ws/install/setup.bash && ros2 run diff_nav sim_camera"
+
+  # Build only what the Pi needs (bt_engine / bt_mocks / table_map are PC-side).
+  build-robot:
+    <<: *common
+    image: mc-main-nav:robot
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: robot
+    profiles: [robot]
+    command: ./scripts/build.sh --packages-select robot_interfaces diff_nav

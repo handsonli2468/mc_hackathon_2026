@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!-- Runtime failure: the camera never reports the object, so the search times out and
+     the tree fails. This is what an unfindable object looks like to the LLM. -->
+<root BTCPP_format="4" main_tree_to_execute="main">
+  <BehaviorTree ID="main">
+    <Sequence name="look_for_a_missing_bottle">
+      <VisualizeObject name="start_looking" object_name="a bottle that is not there"/>
+      <Timeout name="give_up_after_8s" msec="8000">
+        <ReactiveFallback name="search">
+          <IsObjectFound name="found_it" object_name="a bottle that is not there"/>
+          <Patrol name="patrol"/>
+        </ReactiveFallback>
+      </Timeout>
+      <NavigateToDetectedObject name="drive_to_it"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

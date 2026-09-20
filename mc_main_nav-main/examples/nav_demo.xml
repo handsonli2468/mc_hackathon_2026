@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!-- Pure navigation smoke test: no camera service needed. Turn, drive a lap of the
+     middle of the field, and end facing a known heading. -->
+<root BTCPP_format="4" main_tree_to_execute="nav_demo">
+  <BehaviorTree ID="nav_demo">
+    <Sequence name="nav_demo">
+      <RotateInPlace name="spin_left" angle_deg="90"/>
+      <NavigateToPoint name="corner_1" x="0.60" y="0.80"/>
+      <NavigateToPoint name="corner_2" x="1.20" y="0.80"/>
+      <NavigateToPoint name="corner_3" x="1.20" y="0.40"/>
+      <NavigateToPoint name="corner_4" x="0.60" y="0.40" yaw_deg="180"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# mc - one entry point for this repo. Run it from anywhere:  ./mc <command>
+#
+#   ./mc sim [rviz]        start the simulator here (engine, mocks, map, fake robot, Nav2)
+#   ./mc down              stop everything on this machine
+#   ./mc rviz              RViz only (works against the simulator or the real robot)
+#   ./mc status            what is running + full health check
+#   ./mc doctor            health check only
+#   ./mc logs [service]    follow logs (default: the robot side)
+#   ./mc shell [svc] [cmd] shell inside a container, ROS and the workspace already sourced
+#                          (svc: dev | engine | mocks | map | nav-sim | nav; default dev)
+#
+#   ./mc run <tree.xml>    send a behavior tree and follow it
+#   ./mc validate <tree>   check a tree without running it
+#   ./mc nodes             the node palette the LLM may use
+#   ./mc cancel            stop the running tree
+#
+#   ./mc build [pkgs...]   colcon build the workspace (after C++ or interface changes)
+#   ./mc image             rebuild the Docker image (after docker/Dockerfile changes)
+#   ./mc test [unit|sim]   unit tests (fast) and/or the end-to-end suite
+#
+#   ./mc deploy pc|pi      rsync this repo to the mini PC / robot Pi and rebuild there
+#   ./mc ssh pc|pi         shell on a machine
+#
+# Talking to a remote engine:  BT_ENGINE_URL=https://mcpc.taile84e23.ts.net BT_ENGINE_TOKEN=... ./mc run ...
+set -eo pipefail
+cd "$(dirname "$(readlink -f "$0")")"
+
+COMPOSE=(docker compose -f docker/compose.yaml --profile sim --profile gui --profile robot)
+PC_HOST="${PC_HOST:-mcpc}"          # falls back to Tailscale if the LAN name fails
+PC_HOST_TS="${PC_HOST_TS:-wildbot@100.113.211.14}"
+PI_HOST="${PI_HOST:-mcpi}"
+RSYNC_EXCLUDES=(--exclude 'ws/build/' --exclude 'ws/install/' --exclude 'ws/log/'
+                --exclude '__pycache__/' --exclude 'data/' --exclude '*.AppImage' --exclude '.git/')
+
+# ~/.bashrc sources ROS only for interactive shells, so do it explicitly for one-off commands.
+SOURCE_ROS='source /opt/ros/humble/setup.bash; [ -f ws/install/setup.bash ] && source ws/install/setup.bash;'
+
+usage() { awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; }
+
+reachable() { ssh -o BatchMode=yes -o ConnectTimeout=6 "$1" true 2>/dev/null; }
+
+pick_pc() {
+  if reachable "$PC_HOST"; then echo "$PC_HOST"
+  elif reachable "$PC_HOST_TS"; then echo "$PC_HOST_TS"
+  else echo "cannot reach the mini PC ($PC_HOST or $PC_HOST_TS)" >&2; return 1
+  fi
+}
+
+case "${1:-help}" in
+  sim)        shift; exec ./scripts/sim.sh up "$@" ;;
+  down)       exec ./scripts/sim.sh down ;;
+  rviz)       exec ./scripts/sim.sh rviz ;;
+  status)     exec ./scripts/sim.sh status ;;
+  logs)       shift; exec ./scripts/sim.sh logs "$@" ;;
+  doctor)     shift; exec ./scripts/doctor.sh "$@" ;;
+
+  shell|enter|exec)
+    shift
+    svc="${1:-dev}"; [ $# -gt 0 ] && shift
+    export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-59}"
+    if "${COMPOSE[@]}" ps --status running --services 2>/dev/null | grep -qx "$svc"; then
+      if [ $# -gt 0 ]; then
+        exec "${COMPOSE[@]}" exec "$svc" bash -c "$SOURCE_ROS $*"
+      fi
+      echo "inside the running '$svc' container (ROS_DOMAIN_ID=$ROS_DOMAIN_ID). Try: ros2 node list"
+      exec "${COMPOSE[@]}" exec "$svc" bash
+    fi
+    # Not running: start a throwaway container from the same image.
+    if [ $# -gt 0 ]; then
+      exec "${COMPOSE[@]}" run --rm "$svc" bash -c "$SOURCE_ROS $*"
+    fi
+    echo "'$svc' is not running; opening a throwaway container instead (ROS_DOMAIN_ID=$ROS_DOMAIN_ID)."
+    exec "${COMPOSE[@]}" run --rm "$svc" bash
+    ;;
+
+  run|validate|nodes|cancel)
+    cmd=$1; shift; exec ./scripts/bt_exec.py "$cmd" "$@" ;;
+
+  build)
+    shift
+    args=(); [ $# -gt 0 ] && args=(--packages-select "$@")
+    exec "${COMPOSE[@]}" run --rm dev ./scripts/build.sh "${args[@]}" ;;
+
+  image)
+    exec "${COMPOSE[@]}" build dev ;;
+
+  test)
+    what="${2:-all}"
+    if [ "$what" = unit ] || [ "$what" = all ]; then
+      echo "=== unit tests"
+      "${COMPOSE[@]}" run --rm \
+        -e PYTHONPATH=/home/main/mc_main_nav/ws/src/diff_nav:/home/main/mc_main_nav/ws/src/table_map dev \
+        bash -c 'source /opt/ros/humble/setup.bash && python3 -m pytest -q ws/src/diff_nav/test ws/src/table_map/test'
+    fi
+    if [ "$what" = sim ] || [ "$what" = all ]; then
+      echo "=== end-to-end (needs ./mc sim running)"
+      ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-59}" ./scripts/test_nav_sim.py "${@:3}"
+    fi
+    ;;
+
+  deploy)
+    case "${2:-}" in
+      pc)
+        host=$(pick_pc)
+        echo "=== syncing to $host"
+        rsync -a "${RSYNC_EXCLUDES[@]}" ./ "$host:~/mc_main_nav/"
+        ssh "$host" 'cd ~/mc_main_nav && docker compose -f docker/compose.yaml run --rm -T dev ./scripts/build.sh 2>&1 | grep -E "error|Summary"'
+        echo "Restart the services yourself when convenient (they are serving the team):"
+        echo "  ssh $host 'cd ~/mc_main_nav && ENGINE_PORT=8090 BT_ENGINE_TOKEN=... TABLE_MAP_TOKEN=... \\"
+        echo "    docker compose -f docker/compose.yaml up -d --force-recreate engine mocks map'"
+        ;;
+      pi)
+        echo "=== syncing to $PI_HOST"
+        rsync -a "${RSYNC_EXCLUDES[@]}" ./ "$PI_HOST:~/mc_main_nav/"
+        ssh "$PI_HOST" 'cd ~/mc_main_nav && docker compose -f docker/compose.yaml --profile robot run --rm -T build-robot 2>&1 | grep -E "error|Summary"'
+        echo "Start it with:  ./mc ssh pi  then  docker compose -f docker/compose.yaml --profile robot up -d nav"
+        ;;
+      *) echo "usage: ./mc deploy pc|pi" >&2; exit 1 ;;
+    esac
+    ;;
+
+  ssh)
+    case "${2:-}" in
+      pc) exec ssh "$(pick_pc)" ;;
+      pi) exec ssh "$PI_HOST" ;;
+      *) echo "usage: ./mc ssh pc|pi" >&2; exit 1 ;;
+    esac
+    ;;
+
+  help|-h|--help) usage ;;
+  *) echo "unknown command: $1" >&2; echo; usage; exit 1 ;;
+esac

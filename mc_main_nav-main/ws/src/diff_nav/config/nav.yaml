@@ -1,0 +1,79 @@
+# diff_nav node parameters (the object-level layer on top of Nav2).
+# Nav2's own parameters are in nav2_table.yaml. Floats need a decimal point.
+diff_nav:
+  ros__parameters:
+    map_frame: map
+    base_frame: base_link
+    object_pose_service: get_object_pose
+    cmd_vel_topic: /cmd_vel_ros   # NOT /cmd_vel: cmd_vel_flip negates it onto the real one
+    costmap_topic: /global_costmap/costmap
+
+    default_stop_distance: 0.05   # robot front -> object centre, when the goal doesn't say
+    robot_front_offset: 0.15      # robot centre -> front edge (robot_radius).
+    at_object_tolerance: 0.02
+    approach_candidates: 16       # spots tried around the object
+    free_threshold: 99            # costmap value (0-100) that counts as blocked (99 = robot would touch)
+    nav_timeout: 90.0
+    rotate_timeout: 20.0
+    pose_timeout: 0.5
+
+    # Camera-guided approach (TrackObject)
+    servo_rate: 10.0
+    servo_timeout: 40.0
+    detection_timeout: 1.0        # detections older than this count as "not visible"
+    servo:
+      distance_tolerance: 0.01
+      yaw_tolerance: 0.10
+      align_first: 0.35           # rad; turn in place when the bearing is worse than this
+      k_linear: 0.8
+      k_angular: 1.8
+      max_linear: 0.05            # slower than Nav2: we are close to things
+      max_angular: 0.8
+      blind_gap: 0.12             # finish blind only if the object was lost closer than this
+    pose_lost_timeout: 3.0        # camera gone this long while moving -> cancel and fail
+
+tf_pose_bridge:
+  ros__parameters:
+    # The camera team publish the robot's pose as TF (map -> pnp_duck_1) instead of as a
+    # PoseStamped. This republishes it on pose_topic, which is what pose_bridge and the
+    # BT's approach nodes read. Set source_frame to "" to turn the node off.
+    source_frame: pnp_duck_1
+    pose_topic: /robot_pose
+    map_frame: map
+    publish_rate: 20.0
+    max_age_s: 1.0                # older than this is a memory, not a pose
+    yaw_offset_deg: 0.0           # set to 180 only if the CAMERA reports the robot facing
+                                  # backwards. The known sign problem is in /cmd_vel (the
+                                  # MCU drives backwards for +x), which this does not fix.
+
+pose_bridge:
+  ros__parameters:
+    pose_topic: /robot_pose       # from the global camera (PoseStamped, map frame)
+    odom_topic: /odom             # map-frame pose + estimated velocity, for Nav2's controller
+    map_frame: map
+    base_frame: base_link
+    velocity_smoothing: 0.5
+    # The robot has wheel odometry and an EKF (robot_localization) publishing
+    # map -> odom -> base_link, and that chain owns the robot's position. Two publishers
+    # of map -> base_link would fight, so this node stays out of the way. Set both true
+    # again if the EKF goes and the global camera becomes the only position source.
+    publish_tf: false
+    publish_odom: false
+
+cmd_vel_flip:
+  ros__parameters:
+    # WORKAROUND for firmware that drives backwards for a positive linear.x. Everything
+    # upstream publishes cmd_vel_ros; this republishes it, negated, on /cmd_vel.
+    # When the MCU is fixed: set flip_linear false, then delete the node and the vendored
+    # nav2_navigation.launch.py, and put cmd_vel_topic back to /cmd_vel.
+    input_topic: /cmd_vel_ros
+    output_topic: /cmd_vel
+    flip_linear: true
+    flip_angular: false           # a 180 deg mounting leaves rotation about z alone
+
+gripper_server:
+  ros__parameters:
+    gripper_topic: /gripper       # std_msgs/Int16 (what cubeMX_node subscribes to), latched
+    min_position: 0               # fully open
+    max_position: 100             # fully closed
+    settle_seconds: 2.0           # how long the jaws need; the tree waits this out

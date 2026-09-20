@@ -1,0 +1,8 @@
+# Server: /get_object_pose  (owner: VLM + SAM2)
+# Where is the object? Pose is in the map frame (same frame as the robot pose).
+# found=false if the object has not been detected yet.
+string object_name
+---
+bool found
+string message
+geometry_msgs/PoseStamped pose

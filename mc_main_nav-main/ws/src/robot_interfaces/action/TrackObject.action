@@ -1,0 +1,11 @@
+# Server: /track_object  (owner: navigation, RPi)
+# Camera-guided approach: drive using the onboard camera's view of the object until
+# the robot is `stop_distance` from it (front edge to object) and facing it.
+string object_name
+# metres from the robot's front edge to the object; <= 0 -> the server's default
+float32 stop_distance
+---
+bool success
+string message
+---
+string status

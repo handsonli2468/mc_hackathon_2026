@@ -1,0 +1,8 @@
+# Server: /visualize_object  (owner: VLM + SAM2)
+# Search the current camera view for the object and remember where it is.
+string object_name
+---
+bool success
+string message
+---
+string status

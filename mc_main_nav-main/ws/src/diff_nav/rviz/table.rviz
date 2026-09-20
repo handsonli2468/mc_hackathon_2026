@@ -1,0 +1,145 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: nav2_rviz_plugins/Navigation 2
+    Name: Navigation 2
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid (10 cm)
+      Enabled: true
+      Cell Size: 0.1
+      Plane Cell Count: 20
+      Offset: {X: 1, Y: 1, Z: 0}
+      Reference Frame: map
+      Color: 160; 160; 164
+      Alpha: 0.3
+    - Class: rviz_default_plugins/Map
+      Name: Table map
+      Enabled: true
+      Topic:
+        Value: /map
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 1
+      Color Scheme: map
+      Alpha: 0.8
+    - Class: rviz_default_plugins/Map
+      Name: Global costmap
+      Enabled: true
+      Topic:
+        Value: /global_costmap/costmap
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 1
+      Color Scheme: costmap
+      Alpha: 0.4
+    - Class: rviz_default_plugins/Map
+      Name: Local costmap
+      Enabled: false
+      Topic:
+        Value: /local_costmap/costmap
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 1
+      Color Scheme: costmap
+      Alpha: 0.5
+    - Class: rviz_default_plugins/Path
+      Name: Global plan
+      Enabled: true
+      Topic:
+        Value: /plan
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 5
+      Color: 124; 58; 237
+      Line Style: Lines
+      Line Width: 0.005
+    - Class: rviz_default_plugins/Path
+      Name: Local plan
+      Enabled: true
+      Topic:
+        Value: /local_plan
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 5
+      Color: 22; 163; 74
+      Line Style: Lines
+      Line Width: 0.005
+    - Class: rviz_default_plugins/Polygon
+      Name: Robot footprint
+      Enabled: true
+      Topic:
+        Value: /local_costmap/published_footprint
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 5
+      Color: 21; 128; 61
+      Alpha: 1
+    - Class: rviz_default_plugins/Pose
+      Name: Robot pose (camera)
+      Enabled: true
+      Topic:
+        Value: /robot_pose
+        Durability Policy: Volatile
+        Reliability Policy: Best Effort
+        History Policy: Keep Last
+        Depth: 5
+      Shape: Arrow
+      Color: 21; 128; 61
+      Shaft Length: 0.06
+      Shaft Radius: 0.006
+      Head Length: 0.03
+      Head Radius: 0.015
+    - Class: rviz_default_plugins/Pose
+      Name: Nav2 goal
+      Enabled: true
+      Topic:
+        Value: /goal_pose
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+        Depth: 5
+      Shape: Arrow
+      Color: 234; 88; 12
+      Shaft Length: 0.06
+      Shaft Radius: 0.006
+      Head Length: 0.03
+      Head Radius: 0.015
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: false
+      Marker Scale: 0.1
+  Global Options:
+    Background Color: 246; 245; 242
+    Fixed Frame: map
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Value: /goal_pose
+    - Class: nav2_rviz_plugins/GoalTool
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Name: Table (top down)
+      X: 0.6
+      Y: 0.4
+      Scale: 500
+      Angle: 0
+Window Geometry:
+  Width: 1400
+  Height: 900
+  Displays:
+    collapsed: false

@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BT node palette</title>
+<style>
+  :root{
+    --bg:#fbfbfa; --panel:#fff; --ink:#16181d; --mute:#6b7280; --faint:#9aa1ad;
+    --line:#e6e6e3; --line-soft:#f0f0ed; --accent:#2563eb; --accent-soft:#eff4ff;
+    --code-bg:#15171c; --code-ink:#e8eaf0; --ok:#15803d; --err:#b91c1c;
+    --action:#1d4ed8; --action-bg:#eef3ff;
+    --condition:#b45309; --condition-bg:#fff5e8;
+    --control:#6d28d9; --control-bg:#f4efff;
+    --decorator:#0f766e; --decorator-bg:#e9f7f5;
+    --subtree:#6b7280; --subtree-bg:#f2f3f5;
+    --radius:10px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0e1013; --panel:#16191e; --ink:#e8eaf0; --mute:#9aa1ad; --faint:#6b7280;
+      --line:#262b33; --line-soft:#1d2128; --accent:#7ba2ff; --accent-soft:#182132;
+      --code-bg:#0a0c0f; --code-ink:#e8eaf0; --ok:#4ade80; --err:#f87171;
+      --action:#7ba2ff; --action-bg:#172033;
+      --condition:#f0b054; --condition-bg:#2a2013;
+      --control:#b794f6; --control-bg:#241b33;
+      --decorator:#4fd1c5; --decorator-bg:#122a29;
+      --subtree:#9aa1ad; --subtree-bg:#1c2027;
+    }
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  code,kbd,pre,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+  header{
+    position:sticky; top:0; z-index:5; background:var(--panel);
+    border-bottom:1px solid var(--line); padding:14px 16px;
+  }
+  .bar{max-width:1080px; margin:0 auto; display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+  .brand{display:flex; align-items:baseline; gap:10px; margin-right:auto}
+  h1{font-size:17px; margin:0; letter-spacing:-.01em}
+  .sub{color:var(--faint); font-size:13px}
+  input[type=search]{
+    font:inherit; font-size:14px; padding:7px 11px; color:var(--ink);
+    background:var(--bg); border:1px solid var(--line); border-radius:8px; min-width:210px;
+  }
+  input[type=search]:focus{outline:2px solid var(--accent-soft); border-color:var(--accent)}
+  .toggle{display:flex; align-items:center; gap:7px; color:var(--mute); font-size:14px; user-select:none}
+  button{
+    font:inherit; font-size:14px; padding:7px 13px; color:var(--ink);
+    background:var(--panel); border:1px solid var(--line); border-radius:8px; cursor:pointer;
+  }
+  button:hover{border-color:var(--accent); color:var(--accent)}
+  button.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  button.primary:hover{opacity:.9; color:#fff}
+  #status{color:var(--mute); font-size:13px; white-space:nowrap}
+  #status b{color:var(--ink); font-weight:600}
+
+  main{max-width:1080px; margin:0 auto; padding:24px 16px 8px}
+  .lede{color:var(--mute); margin:0 0 20px; max-width:66ch}
+  .lede code{color:var(--ink); background:var(--line-soft); padding:1px 5px; border-radius:4px; font-size:13px}
+
+  h2{
+    font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint);
+    margin:28px 0 12px; font-weight:650;
+  }
+  .grid{display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
+  .node{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px 16px; transition:border-color .12s;
+  }
+  .node:hover{border-color:var(--faint)}
+  .node h3{margin:0; font-size:15px; font-family:ui-monospace,monospace; font-weight:600; letter-spacing:-.01em}
+  .row{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  .kind{
+    font-size:11px; font-weight:650; letter-spacing:.04em; text-transform:uppercase;
+    padding:2px 8px; border-radius:99px; margin-left:auto;
+  }
+  .kind.Action{color:var(--action); background:var(--action-bg)}
+  .kind.Condition{color:var(--condition); background:var(--condition-bg)}
+  .kind.Control{color:var(--control); background:var(--control-bg)}
+  .kind.Decorator{color:var(--decorator); background:var(--decorator-bg)}
+  .kind.SubTree{color:var(--subtree); background:var(--subtree-bg)}
+  .tag{font-size:11px; color:var(--faint); border:1px solid var(--line); border-radius:99px; padding:1px 8px}
+
+  table{width:100%; border-collapse:collapse; margin-top:10px; font-size:13.5px}
+  th,td{text-align:left; padding:5px 10px 5px 0; vertical-align:top; border-bottom:1px solid var(--line-soft)}
+  tr:last-child td{border-bottom:0}
+  th{font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--faint); font-weight:650}
+  td.port{font-family:ui-monospace,monospace; white-space:nowrap; font-size:13px}
+  td.type{color:var(--mute); font-family:ui-monospace,monospace; font-size:12.5px}
+  td.desc{color:var(--mute)}
+  .req{color:var(--condition); font-size:12px; font-style:normal}
+  .none{color:var(--faint); font-style:italic; margin-top:8px; font-size:13.5px}
+
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; margin-bottom:14px}
+  .card > h3{margin:0 0 4px; font-size:15px}
+  .card p{color:var(--mute); margin:6px 0 10px; max-width:70ch}
+  details.run{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px 16px; margin-bottom:10px}
+  details.run > summary{cursor:pointer; font-weight:600; list-style:revert}
+  details.run[open] > summary{margin-bottom:6px}
+  details.run p{color:var(--mute); margin:8px 0 4px}
+  pre{
+    background:var(--code-bg); color:var(--code-ink); padding:12px 14px; border-radius:8px;
+    overflow-x:auto; font-size:13px; line-height:1.5; margin:8px 0;
+  }
+  .cmd{position:relative}
+  .cmd button{
+    position:absolute; top:8px; right:8px; font-size:12px; padding:3px 9px;
+    background:rgba(255,255,255,.08); color:#cfd4de; border-color:rgba(255,255,255,.15);
+  }
+  .cmd button:hover{color:#fff; border-color:rgba(255,255,255,.4)}
+  .err{color:var(--err)}
+  footer{max-width:1080px; margin:0 auto; color:var(--faint); padding:8px 16px 40px; font-size:13.5px}
+  @media (max-width:560px){
+    .bar{gap:8px}
+    input[type=search]{min-width:0; flex:1 1 100%}
+    #status{margin-left:0}
+    .grid{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand"><h1>BT node palette</h1><span class="sub">mc_main_nav</span></div>
+    <input type="search" id="q" placeholder="Filter by name or port…" autofocus>
+    <label class="toggle"><input type="checkbox" id="builtin"> built-ins</label>
+    <button id="copy" class="primary">Copy for LLM prompt</button>
+    <span id="status">loading…</span>
+  </div>
+</header>
+
+<main>
+  <p class="lede">
+    Every node an LLM-written tree may use, served live from <code>GET /nodes</code>.
+    Anything else is rejected before the tree runs, along with unknown ports, missing
+    required ports and out-of-range values.
+  </p>
+
+  <div class="card">
+    <h3>The shape of a search</h3>
+    <p>
+      Ask the camera to start looking, run a search while it has not found anything, then
+      drive to where it says the object is. The control flow is ordinary BT.CPP —
+      <code>ReactiveFallback</code> re-checks the condition every tick and halts the search
+      the moment it succeeds.
+    </p>
+    <div class="cmd"><pre>&lt;Sequence&gt;
+  &lt;SetGripper position="0"/&gt;
+  &lt;VisualizeObject object_name="the white paper cup"/&gt;
+
+  &lt;Timeout msec="60000"&gt;
+    &lt;ReactiveFallback&gt;
+      &lt;IsObjectFound object_name="the white paper cup"/&gt;
+      &lt;Patrol/&gt;
+    &lt;/ReactiveFallback&gt;
+  &lt;/Timeout&gt;
+
+  &lt;NavigateToDetectedObject standoff="0.05"/&gt;
+  &lt;SetGripper position="100"/&gt;
+&lt;/Sequence&gt;</pre></div>
+  </div>
+
+  <div id="out"></div>
+</main>
+
+<main>
+  <h2>Running it</h2>
+
+  <details class="run" open>
+    <summary>Simulator on your laptop</summary>
+    <p>Engine, mocks, map, fake robot and Nav2, on <code>ROS_DOMAIN_ID=59</code>, the same domain as the real robot — run one stack at a time.</p>
+    <div class="cmd"><pre>./mc sim          # add "rviz" for RViz
+./mc status       # what is running, plus a health check
+./mc logs         # follow the robot side
+./mc down</pre></div>
+    <p>The camera service is a separate thing. Point the engine at it, or use the stub:</p>
+    <div class="cmd"><pre>./mc shell engine 'ros2 param set /bt_engine camera.base_url http://&lt;host&gt;:&lt;port&gt;'
+./scripts/fake_camera.py --find-after 10 --x 0.40 --y 0.20 --drift 0.03</pre></div>
+  </details>
+
+  <details class="run">
+    <summary>Send a tree</summary>
+    <div class="cmd"><pre>./mc validate examples/search_and_track.xml   # check without running
+./mc run      examples/search_and_track.xml   # run and follow it
+./mc nodes                                    # this palette, as XML
+./mc cancel                                   # stop the running tree</pre></div>
+    <p>Against the deployed engine instead of your laptop:</p>
+    <div class="cmd"><pre>export BT_ENGINE_URL=https://mcpc.taile84e23.ts.net
+export BT_ENGINE_TOKEN=&lt;token&gt;
+./mc run examples/search_and_track.xml</pre></div>
+    <p>Or straight over HTTP, which is what the LLM does:</p>
+    <div class="cmd"><pre>curl -X POST "$BT_ENGINE_URL/execute" -H "X-BT-Token: $BT_ENGINE_TOKEN" \
+     -H 'Content-Type: application/xml' --data-binary @tree.xml
+curl "$BT_ENGINE_URL/status" -H "X-BT-Token: $BT_ENGINE_TOKEN"</pre></div>
+  </details>
+
+  <details class="run">
+    <summary>Watch what it is doing</summary>
+    <div class="cmd"><pre>./mc rviz                            # map, costmap, planned path, goal
+./mc doctor                          # the whole chain at a glance
+./Groot2-v1.9.0-x86_64.AppImage      # live tree, connect to localhost:1667</pre></div>
+    <p>The obstacle map UI is on port 8081 of whichever machine runs it.</p>
+  </details>
+
+  <details class="run">
+    <summary>After changing code</summary>
+    <p>Python needs only a restart; C++ (the engine) needs a build.</p>
+    <div class="cmd"><pre>./mc build bt_engine
+docker compose -f docker/compose.yaml --profile sim restart engine
+./mc test            # 23 unit tests, then the end-to-end suite</pre></div>
+  </details>
+</main>
+
+<footer>
+  Served by the engine from <code>GET /nodes</code> — exactly what the LLM is allowed to use.
+</footer>
+<script>
+const $ = s => document.querySelector(s);
+
+// Token, only needed when the engine is exposed to the internet. Kept in this browser.
+const KEY = "bt_engine_token";
+const token = () => { try { return localStorage.getItem(KEY) || ""; } catch { return ""; } };
+function askToken(why) {
+  const t = prompt(why || "Access token for this engine:", token());
+  if (t === null) return false;
+  try { localStorage.setItem(KEY, t.trim()); } catch {}
+  return true;
+}
+async function api(url, opts = {}) {
+  const headers = {...(opts.headers || {})};
+  if (token()) headers["X-BT-Token"] = token();
+  const res = await fetch(url, {...opts, headers});
+  if (res.status === 401 && askToken("This engine needs an access token:")) {
+    return api(url, opts);
+  }
+  return res;
+}
+
+const ORDER = ["Action", "Condition", "Control", "Decorator", "SubTree"];
+let nodes = [], customIds = new Set();
+
+async function fetchModel(url) {
+  const res = await api(url);
+  if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
+  const doc = new DOMParser().parseFromString(await res.text(), "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("could not parse the node list");
+  return [...doc.querySelectorAll("TreeNodesModel > *")].map(el => ({
+    id: el.getAttribute("ID"),
+    kind: el.tagName,
+    ports: [...el.children].map(p => ({
+      dir: p.tagName.replace("_port", ""),
+      name: p.getAttribute("name"),
+      type: p.getAttribute("type") || "",
+      def: p.getAttribute("default"),
+      desc: (p.textContent || "").trim(),
+    })),
+  }));
+}
+
+async function load() {
+  try {
+    const [all, custom] = await Promise.all([fetchModel("/nodes"), fetchModel("/nodes?builtin=0")]);
+    customIds = new Set(custom.map(n => n.id));
+    nodes = all;
+    $("#status").innerHTML =
+      `<b>${customIds.size}</b> robot nodes · ${all.length - customIds.size} built-ins`;
+    render();
+  } catch (e) {
+    $("#status").innerHTML = `<span class="err">${e.message}</span>`;
+  }
+}
+
+function card(n) {
+  const el = document.createElement("div");
+  el.className = "node";
+  const tag = customIds.has(n.id) ? "" : '<span class="tag">built-in</span>';
+  const ports = n.ports.length ? `<table>
+      <tr><th>Port</th><th>Type</th><th>Default</th><th>What it means</th></tr>
+      ${n.ports.map(p => `<tr>
+        <td class="port">${p.name}${p.dir === "output" ? " \u21a6" : ""}</td>
+        <td class="type">${p.type.replace("std::string", "string")}</td>
+        <td class="port">${p.def !== null && p.def !== undefined && p.def !== ""
+          ? p.def : "<span class='req'>required</span>"}</td>
+        <td class="desc">${p.desc}</td></tr>`).join("")}
+    </table>` : '<p class="none">no ports</p>';
+  el.innerHTML = `<div class="row"><h3>${n.id}</h3>${tag}
+      <span class="kind ${n.kind}">${n.kind}</span></div>${ports}`;
+  return el;
+}
+
+function render() {
+  const q = $("#q").value.trim().toLowerCase();
+  const showBuiltin = $("#builtin").checked;
+  const out = $("#out");
+  out.textContent = "";
+  let shown = 0;
+  for (const kind of ORDER) {
+    const list = nodes.filter(n =>
+      n.kind === kind &&
+      (showBuiltin || customIds.has(n.id)) &&
+      (!q || n.id.toLowerCase().includes(q) || n.ports.some(p => p.name.toLowerCase().includes(q))));
+    if (!list.length) continue;
+    shown += list.length;
+    const h = document.createElement("h2");
+    h.textContent = `${kind}s (${list.length})`;
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    list.sort((a, b) => (customIds.has(b.id) - customIds.has(a.id)) || a.id.localeCompare(b.id))
+        .forEach(n => grid.append(card(n)));
+    out.append(h, grid);
+  }
+  if (!shown) {
+    const p = document.createElement("p");
+    p.className = "none";
+    p.textContent = "Nothing matches that filter.";
+    out.append(p);
+  }
+}
+
+$("#copy").onclick = async () => {
+  const showBuiltin = $("#builtin").checked;
+  const text = await (await api("/nodes" + (showBuiltin ? "" : "?builtin=0"))).text();
+  try {
+    await navigator.clipboard.writeText(text);
+    $("#copy").textContent = "Copied";
+  } catch {
+    $("#copy").textContent = "Copy failed — open /nodes";
+  }
+  setTimeout(() => ($("#copy").textContent = "Copy for LLM prompt"), 1500);
+};
+// copy button on every command block
+for (const box of document.querySelectorAll(".cmd")) {
+  const b = document.createElement("button");
+  b.textContent = "Copy";
+  b.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(box.querySelector("pre").textContent);
+      b.textContent = "Copied";
+    } catch {
+      b.textContent = "Copy failed";
+    }
+    setTimeout(() => (b.textContent = "Copy"), 1200);
+  };
+  box.append(b);
+}
+
+$("#q").oninput = render;
+$("#builtin").onchange = render;
+load();
+</script>
+</body>
+</html>

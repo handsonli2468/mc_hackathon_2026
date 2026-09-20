@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!-- Search one part of the field, and give up rather than looking for ever.
+
+     NavigateToPoint is the only node that plans around the obstacles on the map, so it
+     gets the robot across the field. Timeout bounds the search: without it a
+     ReactiveFallback over a Patrol runs until the run is cancelled. -->
+<root BTCPP_format="4" main_tree_to_execute="grab_cup_with_camera">
+  <BehaviorTree ID="grab_cup_with_camera">
+    <Sequence name="grab_cup_with_camera">
+
+      <NavigateToPoint name="go_to_search_area" x="0.90" y="0.60"/>
+      <SetGripper name="open_gripper" position="0"/>
+      <VisualizeObject name="start_looking" object_name="the white paper cup"/>
+
+      <Timeout name="search_for_60s" msec="60000">
+        <ReactiveFallback name="patrol_until_found">
+          <IsObjectFound name="found_it" object_name="the white paper cup"/>
+          <Patrol name="patrol_search_area"/>
+        </ReactiveFallback>
+      </Timeout>
+
+      <NavigateToDetectedObject name="drive_to_cup" standoff="0.05"/>
+      <SetGripper name="close_gripper" position="100"/>
+
+    </Sequence>
+  </BehaviorTree>
+</root>

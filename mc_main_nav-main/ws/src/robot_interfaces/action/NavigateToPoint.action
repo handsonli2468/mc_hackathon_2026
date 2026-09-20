@@ -1,0 +1,17 @@
+# Server: /navigate_to_point  (owner: navigation)
+# Drive to a coordinate in the map frame.
+float32 x
+float32 y
+# Heading to face on arrival, degrees. Leave use_yaw false to arrive facing
+# the direction of travel.
+float32 yaw_deg
+bool use_yaw
+# How fast to drive, as a percentage of the configured maximum. 0 leaves the
+# current limit alone. The behavior tree picks a named profile; the engine
+# turns the name into this number.
+float32 speed_percent
+---
+bool success
+string message
+---
+float32 distance_remaining

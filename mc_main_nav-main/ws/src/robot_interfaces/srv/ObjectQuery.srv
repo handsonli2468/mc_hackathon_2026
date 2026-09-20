@@ -1,0 +1,8 @@
+# Quick yes/no check about an object. Same type, different servers:
+#   /is_object_visible   (owner: VLM)
+#   /is_at_object        (owner: navigation)
+#   /is_object_held      (owner: manipulation)
+string object_name
+---
+bool result
+string message

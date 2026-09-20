@@ -1,0 +1,9 @@
+ws/build/
+ws/install/
+ws/log/
+__pycache__/
+*.pyc
+data/
+
+# 80 MB third-party download; fetch it from github.com/BehaviorTree/Groot2
+Groot2-*.AppImage

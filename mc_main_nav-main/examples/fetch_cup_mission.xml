@@ -1,0 +1,137 @@
+<root BTCPP_format="4" main_tree_to_execute="FetchTheCup">
+  <!--
+    A whole mission, not a snippet: open up, search, approach, grasp,
+    deliver, park - and if any of that fails, leave the robot safe and still report
+    the failure honestly.
+
+    Field is 1.8 x 1.2 m. The places (GoHome, GoToStorage, GoToCentre, ScanFromCentre) are
+    also packaged in the engine, but they are written out at the bottom of this file so it
+    is self-contained: copies of the same coordinates as ws/src/bt_engine/places/places.xml,
+    see docs/map_places.md. Keep them identical, or drop them and call the packaged ones.
+    To fetch something else, change the two `target=` attributes below and nothing else.
+    Every node has a name=, so the run trace reads as English instead of `Patrol::12`.
+  -->
+
+  <BehaviorTree ID="FetchTheCup">
+    <Fallback name="mission_or_recovery">
+      <!-- The mission proper. Any step failing drops through to the recovery below. -->
+      <Sequence name="mission">
+        <SubTree ID="Prepare" name="prepare" target="the white paper cup"/>
+        <SubTree ID="FindTheObject" name="find_it" target="the white paper cup"/>
+        <SubTree ID="PickItUp" name="pick_it_up"/>
+        <SubTree ID="DeliverAndPark" name="deliver"/>
+      </Sequence>
+
+      <SubTree ID="GiveUpSafely" name="give_up_safely"/>
+    </Fallback>
+  </BehaviorTree>
+
+  <!-- Open the hand before moving, and tell the camera team what to look for. -->
+  <BehaviorTree ID="Prepare">
+    <Sequence name="get_ready">
+      <SetGripper name="open_gripper" position="0"/>
+      <VisualizeObject name="start_camera_search" object_name="{target}"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!--
+    Two search strategies, tried in order. Each is a ReactiveFallback: the condition is
+    re-checked every tick while the search runs underneath it, so the moment the camera
+    reports a hit the search is halted.
+  -->
+  <BehaviorTree ID="FindTheObject">
+    <Fallback name="search_strategies">
+      <!-- 1. Patrol the middle of the field for a minute. -->
+      <Timeout name="patrol_for_half_minute" msec="30000">
+        <ReactiveFallback name="patrol_until_found">
+          <IsObjectFound name="found_while_patrolling" object_name="{target}"/>
+          <Patrol name="patrol_middle" speed="normal"/>
+        </ReactiveFallback>
+      </Timeout>
+
+      <!-- 2. Still nothing: sit in the centre and turn on the spot, which sees the
+           corners the patrol box never reaches. ScanFromCentre is a packaged place. -->
+      <Timeout name="sweep_for_40s" msec="40000">
+        <ReactiveFallback name="sweep_until_found">
+          <IsObjectFound name="found_while_sweeping" object_name="{target}"/>
+          <SubTree ID="ScanFromCentre" name="scan_from_centre"/>
+        </ReactiveFallback>
+      </Timeout>
+    </Fallback>
+  </BehaviorTree>
+
+  <!--
+    One approach, followed all the way in. The camera keeps republishing the pose and the
+    node tracks it, stopping `standoff` (5 cm) short so the robot does not drive onto the
+    cup. RetryUntilSuccessful covers a pose that flickers out for a moment mid-drive.
+  -->
+  <BehaviorTree ID="PickItUp">
+    <Sequence name="approach_and_grasp">
+      <RetryUntilSuccessful name="approach_the_cup" num_attempts="3">
+        <Timeout name="approach_deadline" msec="45000">
+          <NavigateToDetectedObject name="drive_to_cup" speed="slow"/>
+        </Timeout>
+      </RetryUntilSuccessful>
+
+      <SetGripper name="close_gripper" position="100"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Carry it to the drop-off, let go, then get out of the way. GoToStorage and GoHome
+       are packaged places: the engine already knows where they are. -->
+  <BehaviorTree ID="DeliverAndPark">
+    <Sequence name="carry_and_release">
+      <SubTree ID="GoToStorage" name="go_to_storage"/>
+      <SetGripper name="release" position="0"/>
+      <SubTree ID="GoHome" name="park_at_home"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!--
+    Recovery. ForceFailure is the point of it: the robot ends up safe and parked, but the
+    run is still reported as FAILED instead of quietly claiming success.
+  -->
+  <BehaviorTree ID="GiveUpSafely">
+    <ForceFailure name="safe_but_still_a_failure">
+      <Sequence name="make_safe">
+        <SetGripper name="open_gripper_again" position="0"/>
+        <Timeout name="go_home_deadline" msec="30000">
+          <SubTree ID="GoHome" name="go_home"/>
+        </Timeout>
+      </Sequence>
+    </ForceFailure>
+  </BehaviorTree>
+
+  <!-- ==========================================================================
+       Places. These are copies of the packaged ws/src/bt_engine/places/places.xml,
+       inlined so this file runs on its own. Robot radius is 0.15 m, so every point
+       keeps the robot centre at least 0.30 m from a wall.
+       ========================================================================== -->
+
+  <!-- HOME (0.30, 0.30): where the robot starts and parks, facing into the field. -->
+  <BehaviorTree ID="GoHome">
+    <NavigateToPoint name="go_home" x="0.30" y="0.30" yaw_deg="0" speed="normal"/>
+  </BehaviorTree>
+
+  <!-- STORAGE (1.50, 0.30): drop-off, diagonally opposite HOME. Slow: it is carrying. -->
+  <BehaviorTree ID="GoToStorage">
+    <NavigateToPoint name="go_to_storage" x="1.50" y="0.30" yaw_deg="0" speed="slow"/>
+  </BehaviorTree>
+
+  <!-- CENTRE (0.90, 0.60): the middle of the field, and of the patrol box. -->
+  <BehaviorTree ID="GoToCentre">
+    <NavigateToPoint name="go_to_centre" x="0.90" y="0.60" speed="normal"/>
+  </BehaviorTree>
+
+  <!-- Drive to the centre and turn on the spot for ever. Never succeeds on its own:
+       it only stops when something above it does. -->
+  <BehaviorTree ID="ScanFromCentre">
+    <Sequence name="centre_then_spin">
+      <SubTree ID="GoToCentre" name="to_centre"/>
+      <Repeat name="keep_turning" num_cycles="-1">
+        <RotateInPlace name="turn_45" angle_deg="45"/>
+      </Repeat>
+    </Sequence>
+  </BehaviorTree>
+
+</root>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fallback for networks that block multicast (guest Wi-Fi, "client isolation").
+  ROS 2 normally finds other machines by multicast; when that is blocked each machine
+  only sees its own nodes. This lists the machines explicitly instead.
+
+  Use it by pointing every container at this file, e.g. in docker/compose.yaml:
+      CYCLONEDDS_URI=file:///home/main/mc_main_nav/docker/cyclonedds.xml
+  Keep the addresses in sync with docs/deploy.md.
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface autodetermine="true" priority="default" multicast="default"/>
+      </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <Peers>
+        <Peer address="192.168.50.109"/>  <!-- dev laptop -->
+        <Peer address="192.168.50.125"/>  <!-- mini PC: bt_engine, table_map, mocks -->
+        <Peer address="192.168.50.67"/>   <!-- robot Pi: Nav2, diff_nav -->
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

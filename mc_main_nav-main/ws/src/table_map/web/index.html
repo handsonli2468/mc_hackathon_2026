@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Table Map</title>
+<style>
+  :root { --bg:#f6f5f2; --ink:#1d1d1b; --mute:#6b6a66; --line:#d9d7d1; --free:#ffffff;
+          --occ:#3a3a38; --obs:#c2410c; --sel:#2563eb; --robot:#15803d; --plan:#7c3aed; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.4 system-ui, sans-serif; color:var(--ink); background:var(--bg); }
+  header { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px 16px;
+           border-bottom:1px solid var(--line); background:#fff; }
+  h1 { font-size:16px; margin:0 12px 0 0; }
+  button { font:inherit; padding:6px 12px; border:1px solid var(--line); border-radius:6px;
+           background:#fff; cursor:pointer; }
+  button.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  button:disabled { opacity:.4; cursor:default; }
+  #status { margin-left:auto; color:var(--mute); font-variant-numeric:tabular-nums; }
+  main { display:flex; flex-wrap:wrap; gap:16px; padding:16px; }
+  #wrap { flex:1 1 600px; min-width:0; }
+  canvas { width:100%; background:#fff; border:1px solid var(--line); border-radius:6px;
+           touch-action:none; cursor:crosshair; }
+  aside { flex:0 0 260px; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  td, th { padding:4px 6px; border-bottom:1px solid var(--line); text-align:left; }
+  tr.sel td { background:#dbeafe; }
+  .hint { color:var(--mute); font-size:13px; }
+  .err { color:#b91c1c; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Table Map</h1>
+  <button data-tool="rect" class="on">Rectangle</button>
+  <button data-tool="circle">Circle</button>
+  <button data-tool="select">Select</button>
+  <button id="del" disabled>Delete</button>
+  <button id="clear">Clear all</button>
+  <span id="status">connecting…</span>
+</header>
+<main>
+  <div id="wrap"><canvas id="c"></canvas>
+    <p class="hint">Drag to draw. In Select mode, click an obstacle and press Delete. Changes go to Nav2 immediately.
+      Grey = walls/edge from the camera or config, orange = your obstacles, green = robot, purple = Nav2 path.</p>
+  </div>
+  <aside>
+    <p id="mapinfo" class="hint"></p>
+    <p id="cursor" class="hint">&nbsp;</p>
+    <table><thead><tr><th>#</th><th>Shape</th><th>Position (cm)</th></tr></thead><tbody id="list"></tbody></table>
+    <p id="msg" class="err"></p>
+  </aside>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+
+// Token, only needed when this UI is exposed to the internet. Kept in this browser.
+const KEY = "table_map_token";
+const token = () => { try { return localStorage.getItem(KEY) || ""; } catch { return ""; } };
+function askToken() {
+  const t = prompt("Access token for the map:", token());
+  if (t === null) return false;
+  try { localStorage.setItem(KEY, t.trim()); } catch {}
+  return true;
+}
+async function api(url, opts = {}) {
+  const headers = {...(opts.headers || {})};
+  if (token()) headers["X-Map-Token"] = token();
+  const res = await fetch(url, {...opts, headers});
+  if (res.status === 401 && askToken()) return api(url, opts);
+  return res;
+}
+const canvas = $("#c"), ctx = canvas.getContext("2d");
+let map = null, gridImg = null, gridKey = "", obstacles = [], robot = null, plan = [];
+let tool = "rect", drag = null, selected = null, saving = false;
+
+// ---- coordinates: map metres <-> canvas pixels (y up on the table, down on screen)
+function scale() { return canvas.width / (map.width * map.resolution); }
+function toPx(x, y) {
+  const s = scale();
+  return [(x - map.origin[0]) * s, canvas.height - (y - map.origin[1]) * s];
+}
+function toMap(px, py) {
+  const s = scale();
+  return [px / s + map.origin[0], (canvas.height - py) / s + map.origin[1]];
+}
+function eventMap(e) {
+  const r = canvas.getBoundingClientRect();
+  return toMap((e.clientX - r.left) * canvas.width / r.width, (e.clientY - r.top) * canvas.height / r.height);
+}
+const cm = v => (v * 100).toFixed(1);
+
+// ---- server
+async function refresh() {
+  try {
+    const key = map ? `${map.width}x${map.height}@${map.source}` : "";
+    const wantGrid = !gridImg || key !== gridKey || refresh.n++ % 10 === 0;
+    const res = await api("/api/state" + (wantGrid ? "?grid=1" : ""));
+    const s = await res.json();
+    map = s.map; robot = s.robot; plan = s.plan;
+    if (!drag && !saving) obstacles = s.obstacles;
+    if (s.grid) buildGrid(s.grid);
+    const age = robot ? robot.age : null;
+    $("#status").textContent = robot == null ? "no robot pose"
+      : age > 1 ? `robot pose stale (${age.toFixed(1)} s)` : "live";
+    $("#mapinfo").textContent =
+      `Map ${cm(map.width * map.resolution)} × ${cm(map.height * map.resolution)} cm, ` +
+      `${map.resolution * 1000} mm cells, from ${map.source}.`;
+    resize(); draw(); list();
+  } catch (e) {
+    $("#status").textContent = "engine unreachable";
+  }
+}
+refresh.n = 0;
+
+function buildGrid(b64) {
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const off = document.createElement("canvas");
+  off.width = map.width; off.height = map.height;
+  const img = off.getContext("2d").createImageData(map.width, map.height);
+  for (let j = 0; j < map.height; j++) {
+    for (let i = 0; i < map.width; i++) {
+      const v = bytes[j * map.width + i];
+      const k = ((map.height - 1 - j) * map.width + i) * 4;  // flip: row 0 is the bottom
+      const c = v === 1 ? [58, 58, 56] : v === 2 ? [200, 198, 192] : [255, 255, 255];
+      img.data.set([...c, 255], k);
+    }
+  }
+  off.getContext("2d").putImageData(img, 0, 0);
+  gridImg = off;
+  gridKey = `${map.width}x${map.height}@${map.source}`;
+}
+
+async function save(next) {
+  saving = true;
+  obstacles = next;
+  draw(); list();
+  try {
+    const res = await api("/api/obstacles", {method: "PUT", body: JSON.stringify(next)});
+    const out = await res.json();
+    if (!out.ok) throw new Error(out.error);
+    obstacles = out.obstacles;
+    $("#msg").textContent = "";
+    gridImg = null;  // our obstacles are part of the grid now; refetch it
+  } catch (e) {
+    $("#msg").textContent = "Not saved: " + e.message;
+  } finally {
+    saving = false;
+    refresh();
+  }
+}
+
+// ---- drawing
+function resize() {
+  const w = $("#wrap").clientWidth;
+  const h = Math.round(w * map.height / map.width);
+  if (canvas.width !== w * devicePixelRatio) {
+    canvas.width = w * devicePixelRatio;
+    canvas.height = h * devicePixelRatio;
+    canvas.style.height = h + "px";
+  }
+}
+
+function shapePath(o) {
+  ctx.beginPath();
+  if (o.type === "rect") {
+    const [x0, y0] = toPx(o.x, o.y + o.h), [x1, y1] = toPx(o.x + o.w, o.y);
+    ctx.rect(x0, y0, x1 - x0, y1 - y0);
+  } else {
+    const [cx, cy] = toPx(o.x, o.y);
+    ctx.arc(cx, cy, o.r * scale(), 0, Math.PI * 2);
+  }
+}
+
+function draw() {
+  if (!map) return;
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (gridImg) ctx.drawImage(gridImg, 0, 0, canvas.width, canvas.height);
+  // 10 cm grid
+  ctx.strokeStyle = "rgba(0,0,0,.06)"; ctx.lineWidth = 1;
+  const s = scale(), step = 0.1 * s;
+  for (let x = 0; x < canvas.width; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+  for (let y = canvas.height; y > 0; y -= step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+
+  const shapes = drag && drag.shape ? [...obstacles, drag.shape] : obstacles;
+  shapes.forEach((o, n) => {
+    shapePath(o);
+    ctx.fillStyle = "rgba(194,65,12,.35)"; ctx.fill();
+    ctx.lineWidth = 2 * devicePixelRatio;
+    ctx.strokeStyle = n === selected ? "#2563eb" : "#c2410c"; ctx.stroke();
+  });
+
+  if (plan.length > 1) {
+    ctx.beginPath();
+    plan.forEach(([x, y], i) => { const [px, py] = toPx(x, y); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+    ctx.strokeStyle = "#7c3aed"; ctx.lineWidth = 2 * devicePixelRatio; ctx.stroke();
+  }
+
+  if (robot) {
+    const [px, py] = toPx(robot.x, robot.y), r = Math.max(0.03 * s, 6);
+    ctx.save(); ctx.translate(px, py); ctx.rotate(-robot.yaw);
+    ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(-r * .7, r * .6); ctx.lineTo(-r * .7, -r * .6); ctx.closePath();
+    ctx.fillStyle = robot.age > 1 ? "#9ca3af" : "#15803d"; ctx.fill();
+    ctx.restore();
+  }
+}
+
+function list() {
+  $("#list").innerHTML = obstacles.map((o, n) => {
+    const pos = o.type === "rect"
+      ? `${cm(o.x)}, ${cm(o.y)} · ${cm(o.w)}×${cm(o.h)}`
+      : `${cm(o.x)}, ${cm(o.y)} · r ${cm(o.r)}`;
+    return `<tr class="${n === selected ? "sel" : ""}" data-n="${n}"><td>${n + 1}</td><td>${o.type}</td><td>${pos}</td></tr>`;
+  }).join("");
+  $("#del").disabled = selected == null;
+}
+
+// ---- editing
+function hit(x, y) {
+  for (let n = obstacles.length - 1; n >= 0; n--) {
+    const o = obstacles[n];
+    if (o.type === "rect" ? x >= o.x && x <= o.x + o.w && y >= o.y && y <= o.y + o.h
+                          : Math.hypot(x - o.x, y - o.y) <= o.r) return n;
+  }
+  return null;
+}
+
+canvas.addEventListener("pointerdown", e => {
+  if (!map) return;
+  const [x, y] = eventMap(e);
+  if (tool === "select") { selected = hit(x, y); draw(); list(); return; }
+  canvas.setPointerCapture(e.pointerId);
+  drag = {x0: x, y0: y, shape: null};
+});
+canvas.addEventListener("pointermove", e => {
+  if (!map) return;
+  const [x, y] = eventMap(e);
+  $("#cursor").textContent = `Cursor ${cm(x)}, ${cm(y)} cm`;
+  if (!drag) return;
+  const id = "o" + Date.now();
+  drag.shape = tool === "rect"
+    ? {id, type: "rect", x: Math.min(x, drag.x0), y: Math.min(y, drag.y0), w: Math.abs(x - drag.x0), h: Math.abs(y - drag.y0)}
+    : {id, type: "circle", x: drag.x0, y: drag.y0, r: Math.hypot(x - drag.x0, y - drag.y0)};
+  draw();
+});
+canvas.addEventListener("pointerup", () => {
+  if (!drag) return;
+  const s = drag.shape;
+  drag = null;
+  const big = s && (s.type === "rect" ? s.w >= 0.005 && s.h >= 0.005 : s.r >= 0.005);
+  if (big) save([...obstacles, s]); else draw();
+});
+
+function removeSelected() {
+  if (selected == null) return;
+  const next = obstacles.filter((_, n) => n !== selected);
+  selected = null;
+  save(next);
+}
+$("#del").onclick = removeSelected;
+$("#clear").onclick = () => { if (obstacles.length && confirm("Remove all obstacles?")) { selected = null; save([]); } };
+document.addEventListener("keydown", e => {
+  if ((e.key === "Delete" || e.key === "Backspace") && selected != null) removeSelected();
+});
+$("#list").addEventListener("click", e => {
+  const tr = e.target.closest("tr"); if (!tr) return;
+  selected = Number(tr.dataset.n); draw(); list();
+});
+document.querySelectorAll("[data-tool]").forEach(b => b.onclick = () => {
+  tool = b.dataset.tool;
+  document.querySelectorAll("[data-tool]").forEach(x => x.classList.toggle("on", x === b));
+  canvas.style.cursor = tool === "select" ? "pointer" : "crosshair";
+});
+window.addEventListener("resize", () => { if (map) { resize(); draw(); } });
+
+refresh();
+setInterval(refresh, 300);
+</script>
+</body>
+</html>
