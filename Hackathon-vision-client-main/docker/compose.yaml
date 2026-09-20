@@ -1,0 +1,32 @@
+x-common-vars: &ros2-vars
+  environment:
+
+services:
+  hackathon-vision-client-ws:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        USER_UID: ${USER_UID:-1000}
+    image: hackathon-vision-client:latest
+    container_name: hackathon-vision-client-ws
+    stdin_open: true
+    tty: true
+    privileged: true
+    network_mode: host
+    # share IPC with host so X11 MIT-SHM works for OpenCV imshow
+    ipc: host
+    # command: bash -c "${LAUNCH_SCRIPT}"
+    working_dir: /home/vision/vision_ws
+    <<: *ros2-vars
+    environment:
+      - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=59
+      - NO_AT_BRIDGE=1
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=file:///home/vision/vision_ws/config/cyclonedds.xml
+      - ROS_WORKSPACE=/home/vision/vision_ws
+    volumes:
+      - /dev:/dev
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ../:/home/vision/vision_ws

@@ -1,0 +1,43 @@
+# Runs on the localization server host, next to hackathon-vision-server-ws (field_calib_node).
+# Lives in the repo root so that ./.env is used both for ${VAR} interpolation and the container.
+#   docker compose up -d --build
+services:
+  app-gateway:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: hackathon-app-gateway:latest
+    container_name: hackathon-app-gateway
+    network_mode: host
+    ipc: host
+    user: "${USER_UID:-1000}:${USER_GID:-1000}"
+    env_file: .env
+    environment:
+      # Must match the localization container's ROS_DOMAIN_ID (its compose sets 59).
+      # Own Cyclone config with a larger receive buffer for the raw overlay images
+      # (~4.3 MB each; with field_calib live.compact the compressed topic is used instead).
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-59}
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=file:///app/cyclonedds.xml
+      - CALIB_MODE=ros
+      # field_calib_node must be launched with
+      #   field_file:=/home/vision/vision_ws/tools/calib/field_app.yaml
+      # which is this file seen from the other container.
+      - FIELD_FILE=/vision_ws/tools/calib/field_app.yaml
+      - FIELD_TEMPLATE=/vision_ws/src/field_calib/config/field.yaml
+      - CALIB_OUTPUT_DIR=/vision_ws/tools/calib/out/ros
+      - DATA_DIR=/app/data
+    volumes:
+      # Fail loudly instead of letting Docker create an empty root-owned folder
+      # when the localization repo is not on this host.
+      - type: bind
+        source: ${VISION_WS:-../Hackathon-vision-server-localization}
+        target: /vision_ws
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./data
+        target: /app/data
+        bind:
+          create_host_path: false
+    restart: unless-stopped

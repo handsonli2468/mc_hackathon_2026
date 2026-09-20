@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- CycloneDDS for the App Gateway only.
+     Same general settings as the localization server's config/cyclonedds.xml, plus a larger
+     receive buffer: field_calib overlay images are ~4.3 MB, i.e. ~66 UDP fragments each, and
+     with Cyclone's default 1 MB request (2 MB effective) the best-effort subscription lost a
+     fragment of nearly every image (socket drops), so no complete frame ever arrived.
+     max is only a request: Linux caps it at net.core.rmem_max and never fails the participant. -->
+<CycloneDDS xmlns="https://cdds.io/config" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/master/etc/cyclonedds.xsd">
+    <Domain id="any">
+        <General>
+            <AllowMulticast>spdp</AllowMulticast>
+            <MaxMessageSize>65500B</MaxMessageSize>
+        </General>
+        <Internal>
+            <SocketReceiveBufferSize min="default" max="16MB"/>
+        </Internal>
+    </Domain>
+</CycloneDDS>

@@ -1,0 +1,10 @@
+# Round 0 (TODO.md section 3, no patch needed): prompt template x query wording.
+# 640 wide + fast = what the server runs today; `detect` with no suffix is the baseline.
+- {name: detect, template: detect}
+- {name: ground_multi, template: ground_multi}
+- {name: ground_single, template: ground_single}
+- {name: region, template: region}
+- {name: detect-exact, template: detect, query_suffix: ', exactly as described'}
+- {name: ground_multi-exact, template: ground_multi, query_suffix: ', exactly as described'}
+- {name: ground_single-exact, template: ground_single, query_suffix: ', exactly as described'}
+- {name: region-exact, template: region, query_suffix: ', exactly as described'}

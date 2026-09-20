@@ -1,0 +1,10 @@
+# Round 2 (TODO.md section 5): upload width x LA_MODE, on the round 0/1 pick
+# (region template + ", exactly as described", default system prompt).
+- {name: w640-fast, width: 640, mode: fast, template: region, query_suffix: ', exactly as described'}
+- {name: w512-fast, width: 512, mode: fast, template: region, query_suffix: ', exactly as described'}
+- {name: w448-fast, width: 448, mode: fast, template: region, query_suffix: ', exactly as described'}
+- {name: w384-fast, width: 384, mode: fast, template: region, query_suffix: ', exactly as described'}
+- {name: w640-hybrid, width: 640, mode: hybrid, template: region, query_suffix: ', exactly as described'}
+- {name: w512-hybrid, width: 512, mode: hybrid, template: region, query_suffix: ', exactly as described'}
+- {name: w448-hybrid, width: 448, mode: hybrid, template: region, query_suffix: ', exactly as described'}
+- {name: w384-hybrid, width: 384, mode: hybrid, template: region, query_suffix: ', exactly as described'}

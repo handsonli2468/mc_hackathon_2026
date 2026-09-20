@@ -1,0 +1,28 @@
+/**:
+  ros__parameters:
+    # Client side of docs/vlm_transport.md: send JPEGs to the VLM server, publish the returned object region on
+    # mask_topic. The server returns a bbox (mask only with VLM_RETURN_MASK=1); a bbox-only answer is published as a
+    # filled bbox and the trackers cut the object out with depth.
+    # Defaults follow docs section 7 (measured on 2026-09-18 with LA_MODE=fast: rtt p50 3.44 s, max 3.71 s).
+
+    color_topic: "/camera_duck/camera/color/image_rect_raw"
+    # Same interface as mask_init_tool; do not run both at the same time
+    mask_topic: "/tracked_object/init_mask"
+
+    vlm.enable: true
+    vlm.endpoint: "tcp://192.168.68.51:5555"  # Hackathon-gpu (tentative)
+    vlm.timeout_s: 5.0                # give up waiting for a response; LA_MODE=slow / hybrid need 12.0
+    vlm.refresh_period_s: 0.0         # send again this long after the last request; keep well above inference time
+    vlm.upload_max_width: 640         # resize before JPEG; should match the VLM input size (server rejects a long side > 1280)
+    vlm.jpeg_quality: 80
+    vlm.ping_period_s: 2.0            # 0 = off; measures network-only latency and picks up query_version changes
+    vlm.no_query_backoff_s: 0.1       # wait this long after the server answers NO_QUERY
+    vlm.error_backoff_s: 2.0          # wait this long after ERROR (e.g. "model loading") instead of resending at once
+    vlm.publish_mask: false           # mask_tracker_vlm_node only: also publish received masks on mask_topic (debug)
+    vlm.max_frame_age_s: 1.0         # do not send when the latest color frame arrived longer ago (camera stalled); 0 = off
+
+    debug.enable: true                # one "VLM stats" line every 2 s
+
+    # Not implemented here (see DEBUG.md section 10):
+    #   vlm.lost_frames_trigger  - needs tracker state; this node does not see it
+    #   vlm.cache_size           - the trackers keep their own frame cache (init.cache_s)

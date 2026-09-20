@@ -1,0 +1,3 @@
+# Local development: tests, tools/mock_server.py and tools/test_client.py.
+-r requirements.txt
+opencv-python-headless>=4.10,<5

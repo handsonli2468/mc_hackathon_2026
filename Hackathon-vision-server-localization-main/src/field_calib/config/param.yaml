@@ -1,0 +1,48 @@
+# field_calib_node parameters.
+# Precedence (high -> low): command line > this file > launch defaults > node declare_parameter defaults
+field_calib_node:
+  ros__parameters:
+    image_topic: /camera/camera/color/image_raw
+    camera_info_topic: /camera/camera/color/camera_info
+    depth_topic: /camera/camera/depth/image_rect_raw
+    depth_info_topic: /camera/camera/depth/camera_info
+    world_frame: map
+    link_frame: camera_link
+    optical_frame: camera_color_optical_frame
+    depth_frame: camera_depth_optical_frame
+    field_file: ''                   # table size input; '' = share/field_calib/config/field.yaml
+    field:
+      disabled_segments: ''          # comma separated, overrides field.yaml, e.g. 'lower_right'
+    edge:
+      step: 0.01                     # model sample spacing (m)
+      blur: 1.0                      # Gaussian sigma before the edge search (px)
+      grad_thresh: 6.0               # min |gradient| (gray / px)
+      contrast_thresh: 20.0          # min table / floor contrast (gray)
+    lm:
+      delta: 1.5                     # Huber threshold (px)
+    calib:
+      frames: 30
+      bands: [80.0, 40.0, 20.0, 12.0]
+      stage_delay: 1.0               # pause after publishing each band's debug images (s)
+      hold_s: 15.0                   # ~/debug/image shows the result this long, then the live view
+      output_dir: /home/vision/vision_ws/tools/calib/out/ros
+      result_file: ''                # '' = <output_dir>/cam_tf.yaml (loaded + published at startup)
+      on_startup: if_missing         # if_missing / always / never
+      min_accept_ratio: 0.6          # below this the result is not applied
+      max_rms_px: 1.5
+      apply: true                    # false = dry run: compute only, no TF / result_file
+    live:
+      enable: true
+      period: 1.0
+      band: 12.0
+      warn_rms_px: 1.5
+      warn_inlier_ratio: 0.7
+      compact: false                 # true: camera-size overlays + ~/{live,calib}/overlay/compressed (JPEG)
+      jpeg_quality: 80
+    depth:
+      enable: true
+      frames: 10
+    tag:
+      id: 1
+      size: 0.08
+      height: 0.2

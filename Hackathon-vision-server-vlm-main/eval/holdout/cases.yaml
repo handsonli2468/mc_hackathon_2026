@@ -1,0 +1,5 @@
+# Holdout set: never used to pick settings, only to confirm them (TODO.md section 3).
+# Same format as eval/cases.yaml; images live in eval/holdout/images/.
+# Capture at a different place with different objects, especially same-category / different-material
+# pairs (plastic cup vs paper cup, glass bottle vs plastic bottle, ceramic mug vs paper cup).
+[]

@@ -1,0 +1,4 @@
+# Holdout check (TODO.md section 3): the current server vs the picked setting, 640 wide + fast.
+# Pass criteria are fixed BEFORE looking at the holdout data; see TODO.md section 3.
+- {name: current-detect, template: detect}
+- {name: picked-region-exact, template: region, query_suffix: ', exactly as described'}

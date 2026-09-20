@@ -1,0 +1,58 @@
+// Localization architecture (render: dot -Tpng docs/localization_flow.dot -o docs/localization_flow.png)
+digraph localization {
+    rankdir=TB;
+    graph [fontname="Noto Sans CJK TC", fontsize=11, splines=true, nodesep=0.35, ranksep=0.8, bgcolor="white"];
+    node  [fontname="Noto Sans CJK TC", fontsize=10, shape=box, style="rounded,filled", fillcolor="#f2f4f7", color="#98a2b3"];
+    edge  [fontname="Noto Sans CJK TC", fontsize=9, color="#667085"];
+
+    subgraph cluster_cam {
+        label="rs_launch.py  (realsense2_camera)";
+        style="rounded,filled"; fillcolor="#eef4ff"; color="#84adff"; fontsize=11;
+        cam  [label="realsense2_camera_node\n1280x720 @30", fillcolor="#d1e0ff"];
+        camtf [label="camera_static_tf\ncam_tf.enable = false\n(手動備援)", style="rounded,dashed,filled", fillcolor="#ffffff"];
+    }
+
+    subgraph cluster_calib {
+        label="field_calib  (相機外參)";
+        style="rounded,filled"; fillcolor="#effaf6"; color="#3ccb7f"; fontsize=11;
+        fieldyaml [label="field.yaml\n桌子尺寸 length/depth/count", shape=note, fillcolor="#ffffff"];
+        fc [label="field_calib_node\n① live: 桌緣殘差監控\n② calibrate: 抓邊 + 6DoF LM\n   初值 = 深度平面 or 目前 TF", fillcolor="#d3f8e2"];
+        camtfyaml [label="cam_tf.yaml + debug PNG\n（下次啟動載入）", shape=note, fillcolor="#ffffff"];
+    }
+
+    subgraph cluster_loc {
+        label="aruco_test  (機器人定位)";
+        style="rounded,filled"; fillcolor="#fff6ed"; color="#f79009"; fontsize=11;
+        pnp  [label="pnp_duck_node\n① solvePnP IPPE_SQUARE\n② 沿視線射線移到 z = target_height\n③ 3-DoF LM (x, y, yaw)", fillcolor="#fee4c8"];
+        homo [label="homography_duck_node\n地面 H + 4 角射線 + 3-DoF LM\n（比較用，可不開）", style="rounded,dashed,filled", fillcolor="#ffffff"];
+    }
+
+    tf [label="TF tree\nmap → camera_link → camera_color_optical_frame", shape=cylinder, fillcolor="#fef0c7", color="#f79009"];
+    app [label="App Gateway → 瀏覽器\n(BEST_EFFORT 訂閱)", fillcolor="#f4f3ff", color="#9b8afb"];
+    out [label="/pose/global\nPoseWithCovarianceStamped\n最終定位 (x, y, yaw), z = 0.2\nyaw 含 tag 安裝偏移 −90°", shape=box, style="rounded,filled,bold", fillcolor="#fee4c8", color="#f79009", penwidth=2];
+
+    cam -> fc   [label="color image + camera_info\ndepth + camera_info"];
+    cam -> pnp  [label="color image + camera_info"];
+    cam -> homo [style=dashed];
+    cam -> tf   [label="camera_link →\ncamera_color_optical_frame", style=dashed];
+
+    fieldyaml -> fc [label="每次校正重讀", style=dashed];
+    fc -> camtfyaml [style=dashed];
+    fc -> tf   [label="/tf_static: map → camera_link\n（唯一發布者，通過檢查才更新）", penwidth=2, color="#3ccb7f"];
+    camtf -> tf [style=dashed, label="預設關閉"];
+
+    tf -> pnp  [label="lookup map → optical\n每 camera_pose_refresh_s 重查"];
+    tf -> homo [style=dashed];
+
+    pnp -> out [label="plane LM 結果\n(LM 不可用時退回原始 PnP)", penwidth=2, color="#f79009"];
+    pnp -> app [label="~/debug/image", style=dashed];
+    pnp -> aux [style=dashed];
+    aux [label="/pose/global/pnp（原始 PnP，z 估出來）\n/pose/global/pnp_plane_lm（LM）\nTF: pnp_duck_1 / pnp_plane_lm_duck_1", shape=note, fillcolor="#ffffff"];
+    homo -> aux2 [style=dashed];
+    aux2 [label="/pose/global/homography\n/duck/pose/plane_lm", shape=note, fillcolor="#ffffff"];
+
+    fc -> app  [label="~/live/overlay/compressed (JPEG, 10 Hz)\n~/calib/overlay(/compressed)\n~/debug/image", color="#9b8afb"];
+    app -> fc  [label="寫 field.yaml + 呼叫 ~/calibrate", style=dashed, color="#9b8afb"];
+
+    { rank=same; out; app; }
+}

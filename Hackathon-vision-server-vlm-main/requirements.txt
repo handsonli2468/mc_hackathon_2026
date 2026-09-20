@@ -1,0 +1,6 @@
+numpy>=1.26,<3
+Pillow>=10,<13
+Flask>=3.0,<4
+waitress>=3,<4
+pyzmq>=25,<28
+PyYAML>=6,<7

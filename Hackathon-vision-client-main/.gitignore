@@ -1,0 +1,8 @@
+*.md
+prompts/*
+log/*
+install/*
+build/*
+capture/*
+!README.md
+!DEBUG.md

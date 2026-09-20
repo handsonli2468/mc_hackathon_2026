@@ -1,0 +1,63 @@
+calibrated_at: '20260919_095507'
+table:
+  length: 1.8
+  depth: 0.6
+  count: 2
+cam_tf:
+  x: 0.94578
+  y: 1.17671
+  z: 1.29113
+  roll: -0.03492
+  pitch: 1.1752
+  yaw: -1.51651
+table_dx:
+- 0.00126
+init: depth
+passed: true
+problems: []
+quality:
+  accept_ratio: 0.9108
+  rms_px: 0.6126
+  segments:
+    far:
+      accepted: 165
+      samples: 165
+      rms_px: 0.334
+      mean_px: 0.178
+    right_0:
+      accepted: 34
+      samples: 45
+      rms_px: 0.606
+      mean_px: -0.592
+    left_0:
+      accepted: 45
+      samples: 45
+      rms_px: 0.456
+      mean_px: -0.43
+    right_1:
+      accepted: 25
+      samples: 44
+      rms_px: 1.107
+      mean_px: 0.01
+    left_1:
+      accepted: 44
+      samples: 44
+      rms_px: 0.22
+      mean_px: 0.094
+    near:
+      accepted: 145
+      samples: 165
+      rms_px: 1.007
+      mean_px: 0.145
+    seam_1:
+      accepted: 155
+      samples: 165
+      rms_px: 0.252
+      mean_px: -0.025
+  depth_plane:
+    n_points: 18120
+    inlier_ratio: 0.6012
+    tilt_deg: 0.6774
+    height_depth: 1.315
+    height_edge: 1.2922
+debug_dir: /home/vision/vision_ws/tools/calib/out/ros/20260919_095507

@@ -1,0 +1,54 @@
+# VLM target server on Hackathon-local-server (AMD Ryzen AI 7 350 / Radeon 860M, gfx1152).
+#   docker compose up -d server         (normally via deploy/deploy.sh)
+#   docker compose run --rm models      (download model files into LOCATE_MODELS_DIR)
+# Settings come from .env; see .env.example.
+services:
+  server:
+    build:
+      context: .
+      args:
+        # ROCm PyTorch for gfx1152, only needed for SAM2 mask mode (VLM_RETURN_MASK=1).
+        TORCH_INDEX: https://stable.repo.amd.com/rocm/whl-next/
+        TORCH_SPEC: torch[device-gfx1152]==2.13.0+rocm10.0.0
+        TORCHVISION_SPEC: torchvision[device-gfx1152]==0.28.0+rocm10.0.0
+    image: vlm-server:rocm
+    container_name: vlm-server
+    init: true
+    restart: unless-stopped
+    shm_size: 2gb
+    devices:
+      - /dev/kfd:/dev/kfd   # ROCm (SAM2)
+      - /dev/dri:/dev/dri   # Vulkan (LocateAnything)
+    ports:
+      - "5555:5555"   # ZMQ detect/ping from the client
+      - "8080:8080"   # HTTP description API
+    volumes:
+      - ${LOCATE_MODELS_DIR:?set LOCATE_MODELS_DIR in .env}:/models:ro
+      - ./output:/output
+    environment:
+      LOCATE_MODEL: /models/locate-anything-q8_0.gguf
+      SAM_CHECKPOINT: /models/sam2.1_hiera_tiny.pt
+      LA_DEVICE: ${LA_DEVICE:-Vulkan0}
+      # fast: ~1.9 s on 640x362 with boxes near-identical to slow on 1-2 targets.
+      # Use hybrid when many same-class objects can be in frame (fast returned a
+      # full-width box on a 15-dog image); clients then need timeout_s 12.0.
+      LA_MODE: ${LA_MODE:-fast}
+      # Strict matching (TODO.md section 3); these defaults keep the original behaviour.
+      LA_PROMPT_TEMPLATE: ${LA_PROMPT_TEMPLATE:-detect}
+      LA_SYSTEM_PROMPT: ${LA_SYSTEM_PROMPT:-}
+      VLM_MIN_SCORE: ${VLM_MIN_SCORE:-0}
+      VLM_SCORE_FIELD: ${VLM_SCORE_FIELD:-p_object}
+      CPU_THREADS: "6"
+      SAM_DEVICE: cuda
+      EXPECTED_GPU_ARCH: gfx1152
+      VLM_ZMQ_BIND: tcp://*:5555
+      VLM_HTTP_PORT: "8080"
+      VLM_RETURN_MASK: ${VLM_RETURN_MASK:-0}
+      VLM_SAM_IMAGE_SIZE: ${VLM_SAM_IMAGE_SIZE:-1024}
+      VLM_INITIAL_QUERY: ${VLM_INITIAL_QUERY:-}
+  models:
+    image: vlm-server:rocm
+    profiles: [tools]
+    volumes:
+      - ${LOCATE_MODELS_DIR:?set LOCATE_MODELS_DIR in .env}:/models
+    entrypoint: [python, /app/scripts/download_models.py, --with-locate]

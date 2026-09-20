@@ -1,0 +1,29 @@
+x-common-vars: &ros2-vars
+  environment:
+
+services:
+  hackathon-vision-server-ws:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        USER_UID: ${USER_UID:-1000}
+    image: hackathon-vision-server:latest
+    container_name: hackathon-vision-server-ws
+    stdin_open: true
+    tty: true
+    privileged: true
+    network_mode: host
+    ipc: host
+    # command: bash -c "${LAUNCH_SCRIPT}"
+    working_dir: /home/vision/vision_ws
+    <<: *ros2-vars
+    environment:
+      - ROS_DOMAIN_ID=59
+      - DISPLAY=${DISPLAY}
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=file:///home/vision/vision_ws/config/cyclonedds.xml
+      - ROS_WORKSPACE=/home/vision/vision_ws
+    volumes:
+      - /dev:/dev
+      - ../:/home/vision/vision_ws

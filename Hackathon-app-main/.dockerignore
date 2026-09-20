@@ -1,0 +1,9 @@
+node_modules
+**/node_modules
+web/dist
+gateway/.venv
+**/__pycache__
+.pytest_cache
+data
+.env
+.git

@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>object_tracker</name>
+  <version>0.0.1</version>
+  <description>ROS2 C++ node that tracks a planar target image with ORB + homography and publishes its 3D position using aligned depth.</description>
+
+  <maintainer email="bred16641@gmail.com">latuuu</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>image_transport</depend>
+  <depend>message_filters</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>ament_index_cpp</depend>
+
+  <!-- vlm_bridge_node: ZeroMQ + JSON; the cppzmq header comes from the Dockerfile -->
+  <depend>libzmq3-dev</depend>
+  <depend>nlohmann-json-dev</depend>
+
+  <exec_depend>opencv</exec_depend>
+  <exec_depend>python3-zmq</exec_depend>
+  <!-- compressed debug image (image_transport plugin) -->
+  <exec_depend>compressed_image_transport</exec_depend>
+  <exec_depend>realsense2_camera</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,0 +1,10 @@
+.env
+data/
+node_modules/
+web/dist/
+gateway/.venv/
+__pycache__/
+.pytest_cache/
+reply.json
+*.tsbuildinfo
+.devdata/

@@ -1,0 +1,51 @@
+# Parameters for homography_duck_node and pnp_duck_node.
+# Precedence (high -> low): command line > this file > launch-file defaults > C++ defaults
+# The camera extrinsic (map -> camera_link) is not here: it is published by
+# realsense2_camera/launch/rs_launch.py (cam_tf.* arguments).
+
+# Shared by both localization nodes
+/**:
+  ros__parameters:
+    RGB_topic: /camera/camera/color/image_raw
+    camera_info_topic: /camera/camera/color/camera_info
+    world_frame: map
+    camera_frame: camera_color_optical_frame
+    target_height: 0.2     # tag surface height above map z=0 (m), used by plane LM in both nodes
+    camera_pose_refresh_s: 1.0   # re-read map -> camera TF every N s (new calibration without restart), 0 = off
+
+    robot:
+      id: 1                # DICT_APRILTAG_16h5
+      marker_size: 0.08     # black-border edge length (m), white margin excluded
+
+    pose_filter:
+      enable: false
+      alpha: 0.1
+      max_jump_m: 0.15
+
+    debug:
+      enable: true
+      img: true              # publish the debug image (no OpenCV window)
+      img_topic: '~/debug/image' # e.g. /pnp_duck_node/debug/image
+
+homography_duck_node:
+  ros__parameters:
+    pose_topic: /pose/global/homography
+    plane_lm:
+      enable: true
+      pose_topic: /duck/pose/plane_lm
+      max_iter: 15
+
+pnp_duck_node:
+  ros__parameters:
+    pose_topic: /pose/global/pnp
+    final_pose_topic: /pose/global     # final output: plane LM (raw PnP fallback); '' = off
+    final_pose_yaw_offset_deg: -90.0   # tag frame -> robot frame, about z (how the tag is mounted)
+    final_pose_cov:                    # fixed 1-sigma of the final pose (geometry_msgs/PoseWithCovarianceStamped)
+      sigma_xy_m: 0.005                # extrinsic + table size dominate; LM jitter alone is ~0.1 mm
+      sigma_z_m: 0.01                  # z is assumed = target_height, not measured
+      sigma_yaw_deg: 1.0
+      sigma_roll_pitch_deg: 5.0        # tag assumed level
+    plane_lm:
+      enable: true
+      pose_topic: /pose/global/pnp_plane_lm
+      max_iter: 15

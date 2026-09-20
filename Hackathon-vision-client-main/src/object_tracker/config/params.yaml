@@ -1,0 +1,95 @@
+/**:
+  ros__parameters:
+    # Target image: absolute path, or a file name under share/object_tracker/targets
+    target_image_path: "target.png"
+
+    # D405: color comes from the depth module and is published as image_rect_raw
+    color_topic: "/camera_duck/camera/color/image_rect_raw"
+    depth_topic: "/camera_duck/camera/aligned_depth_to_color/image_raw"
+    camera_info_topic: "/camera_duck/camera/color/camera_info"
+    output_topic: "/tracked_object/point"
+    # Output frame of /tracked_object/point
+    # Debugging: camera_color_optical_frame (x right, y down, z forward = depth), needs no external TF
+    # On the robot: map (hold / jump checks assume a world-fixed frame)
+    world_frame: "camera_color_optical_frame"
+
+    # ORB + matching
+    orb.n_features: 1000       # target image and ROI search
+    orb.n_features_full: 5000  # full-frame search (LOST, ROI fallback); busy backgrounds steal a small budget
+    orb.fast_threshold: 20     # lower (e.g. 10) for low-contrast / blurry targets
+    detect_scale: 1.0          # downscale scene before ORB (e.g. 0.5) to save CPU
+    ratio_test: 0.75
+    min_matches: 15
+    min_inliers: 10            # initial guess, tune with the "Track stats" debug log
+    ransac_reproj_thresh: 5.0  # px
+    min_area_px: 400.0
+
+    # Stricter gates against background mismatches
+    # Initial guesses: tune with the "Track stats" debug log
+    gate.min_inlier_ratio: 0.3     # inliers / ratio-test matches
+    gate.max_reproj_error_px: 3.0  # mean inlier reprojection error under H
+    gate.max_side_ratio: 3.0       # longer / shorter side, for each pair of opposite box sides
+
+    # ROI search around the last box (skipped when LOST)
+    # Initial guesses: tune with the "Track stats" source / time columns
+    roi.enable: true
+    roi.expand_ratio: 0.5          # grow each side by box size * ratio (at least ORB edge + 8 px)
+    roi.min_size_px: 160           # minimum ROI width / height
+    roi.full_frame_fallback: true  # run full-frame ORB in the same frame when the ROI fails
+
+    # KLT optical flow between ORB detections (results still go through the gates above)
+    # Initial guesses: tune with the "Track stats" source / time columns
+    klt.enable: true
+    klt.redetect_interval: 10      # force an ORB check after this many frames without ORB success
+    klt.min_points: 12             # replaces min_matches / min_inliers for KLT
+    klt.max_points: 150            # cap when adding extra corners inside the box
+    klt.extra_corners: true        # add goodFeaturesToTrack corners (mapped by H^-1, planar assumption)
+    klt.fb_max_px: 1.0             # max forward-backward error per point
+    klt.win_size: 21               # LK window (px)
+    klt.max_level: 3               # LK pyramid levels
+
+    # Depth sampling
+    depth_window: 7            # odd window size around the center pixel
+    depth_min_m: 0.07          # D405 ideal range is about 7-50 cm
+    depth_max_m: 0.5
+
+    # Default depth when the target is detected but too far for D405 depth
+    # (no in-range values and not mostly too-near values). Keeps the correct ray direction; the distance is a guess.
+    depth_fallback.enable: true
+    depth_fallback.value_m: 0.5
+    depth_fallback.max_box_area_px: 0.0  # > 0: only use the default depth for boxes this small (far objects look small); 0 = no check
+
+    # TF
+    tf_timeout_s: 0.05
+
+    # Point filter
+    pose_filter.enable: true
+    pose_filter.alpha: 0.3
+    pose_filter.max_jump_m: 0.15   # also the distance limit for hold / confirm below
+
+    # Hold the last trusted world point on failed frames; confirm big jumps before switching
+    # Initial guesses: tune with the "Track stats" debug log
+    hold.enable: true          # false = publish every OK frame directly (pre-hold behavior)
+    hold.timeout_s: 0.0        # <= 0: hold the last trusted point forever; set back to 0.5 for the old LOST-after-timeout behavior
+    hold.full_search_after_s: 0.5  # HOLDING longer than this: drop KLT / ROI and search the full image (output unchanged)
+    hold.confirm_frames: 3     # consecutive consistent frames to start tracking or accept a jump
+    hold.publish: true         # publish the held point while HOLDING
+
+    # Mask init: build the target from an upstream mask (simulated by mask_init_tool for now)
+    # mask: sensor_msgs/Image mono8, same size as color, non-zero = object, header.stamp = stamp of the color frame it belongs to
+    # Initial guesses: tune with the "init:" part of "Track stats"
+    init.enable: false               # false: no mask subscription and no frame cache (file target only)
+    mask_topic: "/tracked_object/init_mask"
+    init.cache_s: 7.0                # > vlm.timeout_s (6.0): a VLM answer takes ~3.4 s; ~1.2 MB per 848x480 frame (7 s at 30 fps ~ 260 MB)
+    init.stamp_tolerance_s: 0.005    # max |mask stamp - cached frame stamp|
+    init.depth_gate_m: 0.04          # drop mask pixels whose depth differs from the mask median by more than this
+    init.min_mask_px: 400            # largest connected region must have at least this many pixels
+    init.mask_erode_px: 4            # shrink the mask before extracting ORB features
+    init.handoff_timeout_s: 2.0      # give up a candidate not found in the current frame within this time
+
+    # Debug
+    debug.enable: true
+    debug.img: true                  # publish the debug image (drawn only while someone subscribes)
+    debug.image_topic: "/tracked_object/debug_image"  # image_transport: also .../compressed (JPEG) for viewing over WiFi
+    debug.image_rate_hz: 5.0         # max debug image rate; 0 = every frame
+    debug.window: false              # also show an OpenCV window (desktop with a display only, never on the Pi)

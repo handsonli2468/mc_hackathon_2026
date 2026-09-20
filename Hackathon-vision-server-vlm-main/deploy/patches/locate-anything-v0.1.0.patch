@@ -1,0 +1,362 @@
+diff --git a/include/la_capi.h b/include/la_capi.h
+index 047dd87..abee5f8 100644
+--- a/include/la_capi.h
++++ b/include/la_capi.h
+@@ -15,6 +15,7 @@ char*    la_capi_locate_buffer(la_ctx* ctx, const unsigned char* bytes, size_t l
+ /* Accessors over the LAST locate_* result (for purego consumers). */
+ int      la_capi_get_n_detections(la_ctx* ctx);
+ int      la_capi_get_detection_box(la_ctx* ctx, int i, float out_xyxy[4]);    /* 0 ok, -1 bad index */
++int      la_capi_get_detection_score(la_ctx* ctx, int i, float out_p_start_p_coord_p_object[3]); /* 0 ok, -1 bad index; -1 values = unavailable */
+ int      la_capi_get_detection_label(la_ctx* ctx, int i, char* buf, int buf_size); /* returns required size incl NUL; two-call sizing */
+ void        la_capi_free_string(char* s);
+ const char* la_capi_last_error(la_ctx* ctx);                   /* owned by ctx, "" if none */
+diff --git a/src/boxes.cpp b/src/boxes.cpp
+index 89f7781..df3c5d4 100644
+--- a/src/boxes.cpp
++++ b/src/boxes.cpp
+@@ -3,7 +3,11 @@ namespace la {
+ static constexpr int COORD_START=151677, COORD_END=152677,
+                      BOX_START=151668, BOX_END=151669, REF_START=151672, REF_END=151673;
+ std::vector<Box> parse_boxes(const std::vector<int32_t>& ids, int img_w, int img_h,
+-                             const std::function<std::string(const std::vector<int32_t>&)>& decode_label){
++                             const std::function<std::string(const std::vector<int32_t>&)>& decode_label,
++                             const std::vector<float>* probs,
++                             const std::vector<float>* none_probs){
++    if(probs && probs->size()!=ids.size()) probs=nullptr;
++    if(none_probs && none_probs->size()!=ids.size()) none_probs=nullptr;
+     std::vector<Box> out;
+     std::string cur_label;
+     int i=0, n=(int)ids.size();
+@@ -19,9 +23,12 @@ std::vector<Box> parse_boxes(const std::vector<int32_t>& ids, int img_w, int img
+             i=j+1; continue;   // label persists until next REF_START
+         }
+         if(t==BOX_START){
+-            int j=i+1; std::vector<int> coords;
++            int j=i+1; std::vector<int> coords; float coord_prob=0.f;
+             while(j<n && ids[j]!=BOX_END){
+-                if(ids[j]>=COORD_START && ids[j]<=COORD_END) coords.push_back(ids[j]-COORD_START);
++                if(ids[j]>=COORD_START && ids[j]<=COORD_END){
++                    coords.push_back(ids[j]-COORD_START);
++                    if(probs) coord_prob += (*probs)[j];
++                }
+                 ++j;
+             }
+             if(coords.size()==4){
+@@ -29,6 +36,8 @@ std::vector<Box> parse_boxes(const std::vector<int32_t>& ids, int img_w, int img
+                 b.x1 = coords[0]/1000.f*img_w; b.y1 = coords[1]/1000.f*img_h;
+                 b.x2 = coords[2]/1000.f*img_w; b.y2 = coords[3]/1000.f*img_h;
+                 b.label = cur_label;
++                if(probs){ b.p_start = (*probs)[i]; b.p_coord = coord_prob/4.f; }
++                if(none_probs && i+1<n) b.p_object = 1.f - (*none_probs)[i+1];
+                 out.push_back(b);
+             }
+             i=j+1; continue;
+diff --git a/src/boxes.hpp b/src/boxes.hpp
+index e7ec7da..0672239 100644
+--- a/src/boxes.hpp
++++ b/src/boxes.hpp
+@@ -4,7 +4,11 @@
+ #include <cstdint>
+ #include <functional>
+ namespace la {
+-struct Box { float x1,y1,x2,y2; std::string label; };   // pixels
++// p_start: probability of the <box> token that opened this box (near 1 even for
++// "<box><none></box>" answers, so not an existence score); p_coord: mean probability
++// of its 4 coordinate tokens; p_object: 1 - P(<none>) at the first coordinate, i.e.
++// the model's box-vs-"no such object" choice. -1 when the decoder gave no probabilities.
++struct Box { float x1,y1,x2,y2; std::string label; float p_start=-1.f, p_coord=-1.f, p_object=-1.f; };   // pixels
+ // Parse the generated token-id stream into boxes. Coord order x1,y1,x2,y2.
+ // coord_norm = id-151677; pixel = coord_norm/1000 * (img_w for x, img_h for y).
+ // label = the <ref>..</ref> text immediately preceding each <box>..</box>, carried
+@@ -12,6 +16,9 @@ struct Box { float x1,y1,x2,y2; std::string label; };   // pixels
+ // decode_label: maps the label token-id span to text. Must byte-decode the GPT-2
+ // vocab pieces (e.g. la::Tokenizer::decode) so multi-word labels like
+ // "traffic light" round-trip correctly instead of "trafficĠlight".
++// probs / none_probs: optional per-token P(token) and P(<none>) aligned with ids.
+ std::vector<Box> parse_boxes(const std::vector<int32_t>& ids, int img_w, int img_h,
+-                             const std::function<std::string(const std::vector<int32_t>&)>& decode_label);
++                             const std::function<std::string(const std::vector<int32_t>&)>& decode_label,
++                             const std::vector<float>* probs = nullptr,
++                             const std::vector<float>* none_probs = nullptr);
+ }
+diff --git a/src/engine.cpp b/src/engine.cpp
+index 837e321..caa638b 100644
+--- a/src/engine.cpp
++++ b/src/engine.cpp
+@@ -67,11 +67,12 @@ std::vector<Box> Engine::locate_image(const Image& img, const std::string& query
+     //    slots with projected tokens.
+     LMForward lm(ml_, be_);
+     std::vector<int32_t> gen_ids;
++    std::vector<float> gen_probs, gen_none;   // per-token P(token), P(<none>) -> Box scores
+     bool ok;
+-    if(mode==Mode::Slow) ok = lm.decode_greedy_resident(prompt_ids, projected, max_new, gen_ids);
++    if(mode==Mode::Slow) ok = lm.decode_greedy_resident(prompt_ids, projected, max_new, gen_ids, &gen_probs, &gen_none);
+     else                 ok = lm.decode_hybrid(prompt_ids, projected, max_new, gen_ids,
+                                                nullptr, /*fast=*/mode==Mode::Fast,
+-                                               /*early_stop=*/!std::getenv("LA_NO_EARLYSTOP"));
++                                               /*early_stop=*/!std::getenv("LA_NO_EARLYSTOP"), &gen_probs, &gen_none);
+     if(!ok) return empty;
+ 
+     // 6) parse boxes. Coords denormalize against the ORIGINAL image dims — the
+@@ -79,7 +80,7 @@ std::vector<Box> Engine::locate_image(const Image& img, const std::string& query
+     //    not the padded/downscaled preprocess canvas (which overshoots by up to
+     //    one 28px pad and can exceed the image bounds).
+     return parse_boxes(gen_ids, img.w, img.h,
+-                       [&](const std::vector<int32_t>& t){ return tok_.decode(t); });
++                       [&](const std::vector<int32_t>& t){ return tok_.decode(t); }, &gen_probs, &gen_none);
+ }
+ 
+ }
+diff --git a/src/la_capi.cpp b/src/la_capi.cpp
+index 1f2004e..326952f 100644
+--- a/src/la_capi.cpp
++++ b/src/la_capi.cpp
+@@ -14,9 +14,10 @@ static char* dup_to_c(const std::string& s){ char* p=(char*)std::malloc(s.size()
+ static void json_escape(std::string& o, const std::string& s){
+     for(char c: s){ if(c=='"'||c=='\\'){o+='\\'; o+=c;} else if(c=='\n')o+="\\n"; else if((unsigned char)c<0x20){char b[8];std::snprintf(b,sizeof b,"\\u%04x",c);o+=b;} else o+=c; } }
+ static std::string boxes_json(const std::vector<la::Box>& b){
+-    std::string o="{\"detections\":["; char buf[160];
++    std::string o="{\"detections\":["; char buf[256];
+     for(size_t i=0;i<b.size();++i){ if(i)o+=','; o+="{\"label\":\""; json_escape(o,b[i].label);
+-        std::snprintf(buf,sizeof buf,"\",\"box\":[%.3f,%.3f,%.3f,%.3f]}",b[i].x1,b[i].y1,b[i].x2,b[i].y2); o+=buf; }
++        std::snprintf(buf,sizeof buf,"\",\"box\":[%.3f,%.3f,%.3f,%.3f],\"p_start\":%.4f,\"p_coord\":%.4f,\"p_object\":%.4f}",
++                      b[i].x1,b[i].y1,b[i].x2,b[i].y2,b[i].p_start,b[i].p_coord,b[i].p_object); o+=buf; }
+     o+="]}"; return o; }
+ extern "C" {
+ int la_capi_abi_version(void){ return LA_CAPI_ABI_VERSION; }
+@@ -40,6 +41,9 @@ int la_capi_get_n_detections(la_ctx* c){ return c? (int)c->last.size() : 0; }
+ int la_capi_get_detection_box(la_ctx* c, int i, float o[4]){
+     if(!c||i<0||i>=(int)c->last.size()||!o) return -1;
+     o[0]=c->last[i].x1;o[1]=c->last[i].y1;o[2]=c->last[i].x2;o[3]=c->last[i].y2; return 0; }
++int la_capi_get_detection_score(la_ctx* c, int i, float o[3]){
++    if(!c||i<0||i>=(int)c->last.size()||!o) return -1;
++    o[0]=c->last[i].p_start; o[1]=c->last[i].p_coord; o[2]=c->last[i].p_object; return 0; }
+ int la_capi_get_detection_label(la_ctx* c, int i, char* buf, int bufsz){
+     if(!c||i<0||i>=(int)c->last.size()) return -1;
+     const std::string& s=c->last[i].label; int need=(int)s.size()+1;
+diff --git a/src/lm.cpp b/src/lm.cpp
+index ed65725..0beacd1 100644
+--- a/src/lm.cpp
++++ b/src/lm.cpp
+@@ -4,6 +4,7 @@
+ #include "ggml_extend.hpp"
+ #include <cstring>
+ #include <cmath>
++#include <algorithm>
+ namespace la {
+ // Build Qwen2 LM hyper-parameters from the loaded model config (single source of
+ // truth — replaces the per-method init blocks).
+@@ -266,14 +267,28 @@ bool LMForward::mtp_block_forward(ResidentKV& kv, const std::vector<float>& x_ho
+     }, logits6_out);
+ }
+ 
++// softmax(logits)[t], numerically stable; used for the optional per-token probabilities.
++static float token_prob(const std::vector<float>& logits, int t){
++    float m = -INFINITY;
++    for(float v: logits) m = std::max(m, v);
++    double sum = 0.0;
++    for(float v: logits) sum += std::exp((double)v - m);
++    return (float)(std::exp((double)logits[t] - m) / sum);
++}
++
+ bool LMForward::decode_greedy_resident(const std::vector<int32_t>& prompt_ids,
+                                        const std::vector<float>& projected_host,
+-                                       int max_new, std::vector<int32_t>& out_ids){
++                                       int max_new, std::vector<int32_t>& out_ids,
++                                       std::vector<float>* out_probs,
++                                       std::vector<float>* out_none){
++    const int NONE_TOK = 4064;
+     const int EOS = 151645;
+     const auto& c = ml_.config();
+     const int prompt_len = (int)prompt_ids.size();
+     const int n_layers = (int)c.lm_n_layers;
+     out_ids.clear();
++    if(out_probs) out_probs->clear();
++    if(out_none) out_none->clear();
+ 
+     // Fresh resident cache per call so independent calls don't share state.
+     ResidentKV kv;
+@@ -290,6 +305,8 @@ bool LMForward::decode_greedy_resident(const std::vector<int32_t>& prompt_ids,
+     if(!prefill_resident(prompt_ids, projected_host, kv, &logits)){ kv.free(); return false; }
+     int next = argmax(logits);
+     out_ids.push_back(next);
++    if(out_probs) out_probs->push_back(token_prob(logits, next));
++    if(out_none) out_none->push_back(token_prob(logits, NONE_TOK));
+ 
+     // ---- incremental decode: one token at a time ----
+     for(int step=1; step<max_new && next!=EOS; ++step){
+@@ -298,6 +315,8 @@ bool LMForward::decode_greedy_resident(const std::vector<int32_t>& prompt_ids,
+         if(!run_resident_causal(emb, 1, kv.past_len, kv, logits)){ kv.free(); return false; }
+         next = argmax(logits);
+         out_ids.push_back(next);
++        if(out_probs) out_probs->push_back(token_prob(logits, next));
++        if(out_none) out_none->push_back(token_prob(logits, NONE_TOK));
+     }
+     kv.free();
+     return true;
+@@ -307,13 +326,17 @@ bool LMForward::decode_hybrid(const std::vector<int32_t>& prompt_ids,
+                               const std::vector<float>& projected_host,
+                               int max_new, std::vector<int32_t>& out_ids,
+                               std::vector<std::vector<float>>* captured_logits6,
+-                              bool fast, bool early_stop){
++                              bool fast, bool early_stop, std::vector<float>* out_probs,
++                              std::vector<float>* out_none){
++    const int NONE_TOK = 4064;
+     const int TEXT_MASK = 151676;     // default_mask_token_id
+     const int block = 6;
+     const auto& c = ml_.config();
+     const int prompt_len = (int)prompt_ids.size();
+     const int n_layers = (int)c.lm_n_layers;
+     out_ids.clear();
++    if(out_probs) out_probs->clear();
++    if(out_none) out_none->clear();
+ 
+     auto argmax = [](const std::vector<float>& l)->int{
+         int best=0; for(int i=1;i<(int)l.size();++i) if(l[i]>l[best]) best=i; return best;
+@@ -329,6 +352,8 @@ bool LMForward::decode_hybrid(const std::vector<int32_t>& prompt_ids,
+     if(!prefill_resident(prompt_ids, projected_host, kv)){ kv.free(); return false; }
+ 
+     std::vector<int32_t> generated = prompt_ids;   // committed stream
++    std::vector<float> gen_probs(out_probs ? prompt_len : 0, 1.f);  // aligned with generated
++    std::vector<float> gen_none(out_none ? prompt_len : 0, 0.f);    // P(<none>), aligned with generated
+     int cached_len = prompt_len;                   // KV holds [0, cached_len)
+     mtp::HybridState st;                           // use_mtp=true, terminated=false
+ 
+@@ -362,9 +387,17 @@ bool LMForward::decode_hybrid(const std::vector<int32_t>& prompt_ids,
+                 int a0 = argmax(l6[0]);
+                 if(a0 == IM_END || a0 == NULL_TOK){ st.terminated = true; break; }
+             }
+-            std::vector<int32_t> new_tokens = mtp::select_new_tokens(l6, 4, fast);
++            std::vector<std::vector<float>> p6;
++            std::vector<int32_t> new_tokens = mtp::select_new_tokens(l6, 4, fast, (out_probs || out_none) ? &p6 : nullptr);
+             mtp::StepOut step = mtp::hybrid_mtp_step(st, new_tokens, fast);
+             for(int t: step.committed) generated.push_back(t);
++            // Committed tokens are a prefix of the block, so token k sits at block position k.
++            if(out_probs)
++                for(size_t k=0;k<step.committed.size();++k)
++                    gen_probs.push_back(k<p6.size() ? p6[k][step.committed[k]] : -1.f);
++            if(out_none)
++                for(size_t k=0;k<step.committed.size();++k)
++                    gen_none.push_back(k<p6.size() ? p6[k][NONE_TOK] : -1.f);
+             cached_len += n_recompute;  // recomputed tokens cached; 6 block slots discarded next round
+         } else {
+             // AR: forward the uncached committed chunk causally, take last-pos logits.
+@@ -376,6 +409,8 @@ bool LMForward::decode_hybrid(const std::vector<int32_t>& prompt_ids,
+             const int ar_token = argmax(logits);
+             mtp::StepOut step = mtp::hybrid_ar_step(st, ar_token);
+             for(int t: step.committed) generated.push_back(t);
++            if(out_probs) gen_probs.push_back(token_prob(logits, ar_token));  // AR commits exactly ar_token
++            if(out_none) gen_none.push_back(token_prob(logits, NONE_TOK));
+             cached_len += n_recompute;  // == chunk we just cached; keeps kv.past_len in sync
+         }
+         if(st.terminated) break;
+@@ -414,12 +449,15 @@ bool LMForward::decode_hybrid(const std::vector<int32_t>& prompt_ids,
+                 bool yedge = (lc[1]==pc[1] && lc[3]==pc[3]);          // both top+bottom edges
+                 bool sliver = (lc[2]-lc[0] < 20) || (lc[3]-lc[1] < 20);  // tiny in 0..1000 space
+                 if(dup || ((xedge || yedge) && sliver)){
+-                    generated.resize(lstart); st.terminated=true; break;
++                    generated.resize(lstart); if(out_probs) gen_probs.resize(lstart); if(out_none) gen_none.resize(lstart);
++                    st.terminated=true; break;
+                 }
+             }
+         }
+     }
+     out_ids.assign(generated.begin()+prompt_len, generated.end());
++    if(out_probs) out_probs->assign(gen_probs.begin()+prompt_len, gen_probs.end());
++    if(out_none) out_none->assign(gen_none.begin()+prompt_len, gen_none.end());
+     kv.free();
+     return true;
+ }
+diff --git a/src/lm.hpp b/src/lm.hpp
+index 8076975..afa9391 100644
+--- a/src/lm.hpp
++++ b/src/lm.hpp
+@@ -32,9 +32,13 @@ public:
+                                  int max_new, std::vector<int32_t>& out_ids);
+     // Greedy AR decode with the resident KV-cache (fast, incremental). Same output as
+     // decode_greedy_reprefill but O(n^2). Appends generated ids until EOS or max_new.
++    // out_probs (optional): softmax probability of each generated token, aligned with out_ids.
++    // out_none (optional): probability of the <none> token at the same step, aligned with out_ids.
+     bool decode_greedy_resident(const std::vector<int32_t>& prompt_ids,
+                                 const std::vector<float>& projected_host,
+-                                int max_new, std::vector<int32_t>& out_ids);
++                                int max_new, std::vector<int32_t>& out_ids,
++                                std::vector<float>* out_probs = nullptr,
++                                std::vector<float>* out_none = nullptr);
+ 
+     // --- Reusable resident-decode helpers -------------------------------------
+     // Host row-gather from lm.tok_embd: out = [H*ids.size()] flat [token,hidden].
+@@ -69,11 +73,15 @@ public:
+     // tail (a coord box identical to the previous one) instead of running to max_new.
+     // This is the engine/CLI default (clean, faster output); the parity gates pass
+     // false to reproduce the exact reference token stream.
++    // out_probs (optional): probability of each committed token at its block position
++    // (MTP) or step (AR), aligned with out_ids; out_none: P(<none>) at the same place.
+     bool decode_hybrid(const std::vector<int32_t>& prompt_ids,
+                        const std::vector<float>& projected_host,
+                        int max_new, std::vector<int32_t>& out_ids,
+                        std::vector<std::vector<float>>* captured_logits6 = nullptr,
+-                       bool fast = false, bool early_stop = false);
++                       bool fast = false, bool early_stop = false,
++                       std::vector<float>* out_probs = nullptr,
++                       std::vector<float>* out_none = nullptr);
+ private:
+     // Generic resident chunk with a plain absolute-position causal mask. x_host:[H*n_new],
+     // written at KV offset pos0; returns LAST-position logits [vocab]. Advances kv.past_len
+diff --git a/src/mtp.cpp b/src/mtp.cpp
+index c604a3c..7e4d168 100644
+--- a/src/mtp.cpp
++++ b/src/mtp.cpp
+@@ -152,11 +152,13 @@ std::vector<int32_t> sample_box(const std::vector<std::vector<float>>& probs6, i
+ // select_new_tokens: softmax the 6 rows, run sample_box; if it returns the {0} fallback,
+ // replace with per-position argmax of the logits (= sample_tokens x0). Mirrors
+ // _sample_token_in_mtp's `is_box_empty ? x0 : box_avg`.
+-std::vector<int32_t> select_new_tokens(const std::vector<std::vector<float>>& logits6, int keep_k, bool fast) {
++std::vector<int32_t> select_new_tokens(const std::vector<std::vector<float>>& logits6, int keep_k, bool fast,
++                                       std::vector<std::vector<float>>* probs_out) {
+     std::vector<std::vector<float>> probs6(logits6.size());
+     for (size_t p = 0; p < logits6.size(); ++p) probs6[p] = softmax_row(logits6[p]);
+ 
+     std::vector<int32_t> box = sample_box(probs6, keep_k, fast);
++    if (probs_out) *probs_out = std::move(probs6);   // not used below this point
+     if (box.size() == 1 && box[0] == 0) {
+         // fallback -> per-position argmax of logits (argmax6)
+         std::vector<int32_t> argmax6(logits6.size());
+diff --git a/src/mtp.hpp b/src/mtp.hpp
+index 0a3e105..61b1ded 100644
+--- a/src/mtp.hpp
++++ b/src/mtp.hpp
+@@ -13,7 +13,9 @@ namespace la::mtp {
+ // the {0} fallback, OR (when fallback) the 6 argmax ids. keep_k=4.
+ std::vector<int32_t> sample_box(const std::vector<std::vector<float>>& probs6, int keep_k=4, bool fast=false);
+ // Full MTP block-token selection incl. the argmax fallback (= reference new_tokens/x0).
+-std::vector<int32_t> select_new_tokens(const std::vector<std::vector<float>>& logits6, int keep_k=4, bool fast=false);
++// probs_out (optional): receives the [6][vocab] softmax it computed, for per-token confidence.
++std::vector<int32_t> select_new_tokens(const std::vector<std::vector<float>>& logits6, int keep_k=4, bool fast=false,
++                                       std::vector<std::vector<float>>* probs_out=nullptr);
+ struct Pattern { std::string type; std::vector<int32_t> tokens; bool terminal=false; bool need_ar=false; };
+ Pattern handle_pattern(const std::vector<int32_t>& x0, bool fast=false);
+ 
+diff --git a/src/prompt.cpp b/src/prompt.cpp
+index 6086a18..aee62cf 100644
+--- a/src/prompt.cpp
++++ b/src/prompt.cpp
+@@ -1,4 +1,5 @@
+ #include "prompt.hpp"
++#include <cstdlib>
+ namespace la {
+ // Reproduces the HF chat template (system turn auto-prepended; first turn is the
+ // user turn) followed by replace_media_placeholder, which expands the
+@@ -8,7 +9,11 @@ namespace la {
+ std::vector<int32_t> build_prompt(const Tokenizer& tok, int gh, int gw, const std::string& query){
+     int N = (gh/2)*(gw/2);
+     std::string s;
+-    s += "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n";
++    // LA_SYSTEM_PROMPT overrides the system turn; read per call so callers can switch it.
++    const char* system = std::getenv("LA_SYSTEM_PROMPT");
++    s += "<|im_start|>system\n";
++    s += (system && *system) ? system : "You are a helpful assistant.";
++    s += "<|im_end|>\n";
+     s += "<|im_start|>user\n";
+     s += "<image 1><img>";
+     for(int i=0;i<N;++i) s += "<IMG_CONTEXT>";

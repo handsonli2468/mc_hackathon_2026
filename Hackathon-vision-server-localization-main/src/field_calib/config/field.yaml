@@ -1,0 +1,29 @@
+# Table size input for field_calib (map frame, meters, z = 0 is the table top).
+# field_calib_node re-reads this file on every calibration: edit it, then press c / call ~/calibrate.
+#
+# `count` tables of length x depth, butted along the long side (Y):
+#
+#        x = length ............ x = 0
+#   y=0   +----------------------+ <- map origin: the far corner of the first table, i.e. of the
+#         |       table 0        |    two valid rectangle corners, the one farther from the point
+#   y=d   +======== seam_1 ======+    below the camera. +X along the length (image left in the
+#         |       table 1        |    current setup), +Y along the stacking direction (toward the
+#   y=2d  +----------------------+    camera), +Z up.
+table:
+  length: 1.8
+  depth: 0.6
+  count: 2
+
+# Skip this much of every segment near the rounded table corners
+corner_exclusion: 0.08
+
+# Dark gaps between tables
+use_seam: true
+seam_weight: 0.5
+
+# Estimate an x offset of every table after the first (tables only have to be parallel)
+fit_table_dx: true
+
+# Segments to leave out (e.g. an edge that is usually occluded). Names for count = 2:
+# far, right_0, left_0, right_1, left_1, near, seam_1
+disabled_segments: []

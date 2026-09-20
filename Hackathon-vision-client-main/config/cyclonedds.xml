@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CycloneDDS xmlns="https://cdds.io/config" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/master/etc/cyclonedds.xsd">
+    <Domain id="any">
+        <General>
+            <AllowMulticast>spdp</AllowMulticast>
+            <MaxMessageSize>65500B</MaxMessageSize>
+        </General>
+        <Internal>
+            <!-- A 848x480 rgb8 image is ~1.2 MB (~19 UDP fragments); the kernel default (212 KB) drops fragments.
+                 Asks for up to 16 MB; the kernel caps it at net.core.rmem_max, so raise that on the host
+                 (see DEBUG.md). No min: a node still starts on a host that was not configured. -->
+            <SocketReceiveBufferSize max="16MB"/>
+        </Internal>
+    </Domain>
+</CycloneDDS>

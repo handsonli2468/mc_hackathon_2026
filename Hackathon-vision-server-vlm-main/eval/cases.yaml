@@ -1,0 +1,234 @@
+# Eval set for scripts/eval_locate.py. Images live in eval/images/.
+# expect: none (target absent -> the server should answer NOT_FOUND)
+#         or [x1, y1, x2, y2] in ORIGINAL image pixels (the eval rescales per upload width).
+# Draft the boxes with `--propose`, check its overlays, then copy the entries here.
+#
+# Scenes (848x480 frames from the robot's RealSense, 5 each, captured 2026-09-20):
+#   single-*      paper cup alone
+#   distract-*    paper cup + plastic water bottle + black metal bottle + Pepsi can
+#   decoy-*       glass cup + plastic water bottle + Pepsi can, no paper cup
+#   empty-*       empty desk
+# Every image is asked the same four queries, so each object is also a hard negative
+# for the others (paper cup vs glass cup, plastic vs metal bottle).
+#
+# Example:
+# - image: distract-1.png
+#   queries:
+#     - text: the plastic bottle
+#       expect: [312, 140, 368, 300]
+#     - text: the metal bottle
+#       expect: [420, 150, 470, 310]
+#     - text: the paper cup
+#       expect: none
+#
+# Labelled 2026-09-20 from slow-mode --propose overlays; wrong-object answers corrected to none.
+- image: decoy-1.png
+  queries:
+    - text: the paper cup
+      expect: none
+    - text: the glass cup
+      expect: [436, 259, 505, 381]
+    - text: the plastic water bottle
+      expect: [615, 188, 721, 478]
+    - text: the black metal bottle
+      expect: none
+- image: decoy-2.png
+  queries:
+    - text: the paper cup
+      expect: none
+    - text: the glass cup
+      expect: [310, 260, 386, 401]
+    - text: the plastic water bottle
+      expect: [541, 202, 615, 424]
+    - text: the black metal bottle
+      expect: none
+- image: decoy-3.png
+  queries:
+    - text: the paper cup
+      expect: none
+    - text: the glass cup
+      expect: [171, 259, 254, 406]
+    - text: the plastic water bottle
+      expect: [539, 154, 702, 478]
+    - text: the black metal bottle
+      expect: none
+- image: decoy-4.png
+  queries:
+    - text: the paper cup
+      expect: none
+    - text: the glass cup
+      expect: [0, 281, 150, 478]
+    - text: the plastic water bottle
+      expect: [398, 177, 523, 478]
+    - text: the black metal bottle
+      expect: none
+- image: decoy-5.png
+  queries:
+    - text: the paper cup
+      expect: none
+    - text: the glass cup
+      expect: [113, 273, 222, 456]
+    - text: the plastic water bottle
+      expect: [577, 173, 698, 478]
+    - text: the black metal bottle
+      expect: none
+- image: distract-1.png
+  queries:
+    - text: the paper cup
+      expect: [321, 295, 401, 389]
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: [481, 189, 533, 345]
+    - text: the black metal bottle
+      expect: [563, 115, 659, 425]
+- image: distract-2.png
+  queries:
+    - text: the paper cup
+      expect: [527, 341, 640, 478]
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: [117, 178, 256, 478]
+    - text: the black metal bottle
+      expect: [351, 139, 455, 466]
+- image: distract-3.png
+  queries:
+    - text: the paper cup
+      expect: [544, 348, 681, 478]
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: [29, 153, 216, 478]
+    - text: the black metal bottle
+      expect: [719, 113, 846, 478]
+- image: distract-4.png
+  queries:
+    - text: the paper cup
+      expect: [445, 307, 521, 400]
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: [611, 184, 709, 450]
+    - text: the black metal bottle
+      expect: [158, 76, 311, 478]
+- image: distract-5.png
+  queries:
+    - text: the paper cup
+      expect: [414, 320, 468, 433]
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: [453, 208, 507, 373]
+    - text: the black metal bottle
+      expect: [0, 0, 202, 478]
+- image: empty-1.png
+  queries:
+    - text: the paper cup
+      expect: none
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: none
+    - text: the black metal bottle
+      expect: none
+- image: empty-2.png
+  queries:
+    - text: the paper cup
+      expect: none
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: none
+    - text: the black metal bottle
+      expect: none
+- image: empty-3.png
+  queries:
+    - text: the paper cup
+      expect: none
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: none
+    - text: the black metal bottle
+      expect: none
+- image: empty-4.png
+  queries:
+    - text: the paper cup
+      expect: none
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: none
+    - text: the black metal bottle
+      expect: none
+- image: empty-5.png
+  queries:
+    - text: the paper cup
+      expect: none
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: none
+    - text: the black metal bottle
+      expect: none
+- image: lab-desk-cup-bottle.png
+  queries:
+    - text: the paper cup
+      expect: [129, 316, 245, 446]
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: [280, 199, 344, 382]
+    - text: the black metal bottle
+      expect: none
+- image: single-1.png
+  queries:
+    - text: the paper cup
+      expect: [346, 324, 445, 447]
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: none
+    - text: the black metal bottle
+      expect: none
+- image: single-2.png
+  queries:
+    - text: the paper cup
+      expect: [290, 325, 391, 456]
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: none
+    - text: the black metal bottle
+      expect: none
+- image: single-3.png
+  queries:
+    - text: the paper cup
+      expect: [83, 337, 226, 478]
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: none
+    - text: the black metal bottle
+      expect: none
+- image: single-4.png
+  queries:
+    - text: the paper cup
+      expect: [662, 324, 791, 460]
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: none
+    - text: the black metal bottle
+      expect: none
+- image: single-5.png
+  queries:
+    - text: the paper cup
+      expect: [290, 332, 388, 447]
+    - text: the glass cup
+      expect: none
+    - text: the plastic water bottle
+      expect: none
+    - text: the black metal bottle
+      expect: none

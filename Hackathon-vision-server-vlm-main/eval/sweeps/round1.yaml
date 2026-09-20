@@ -1,0 +1,35 @@
+# Round 1 (needs the patched build, LA_PATCH=1): system prompt on the two best round 0 bases
+# (2026-09-20): detect (current server) and region + ", exactly as described".
+- {name: detect-sys-default, template: detect}
+- name: detect-sys-exact
+  template: detect
+  system_prompt: >-
+    You are a precise visual grounding assistant. Only locate objects that match every attribute
+    in the description, including category, material and color. Do not locate similar objects.
+- name: detect-sys-exact-none
+  template: detect
+  system_prompt: >-
+    You are a precise visual grounding assistant. Only locate objects that match every attribute
+    in the description, including category, material and color. If no object matches exactly,
+    output no box.
+- name: detect-sys-short
+  template: detect
+  system_prompt: You are a helpful assistant. Only locate exact matches; if there is none, output nothing.
+- {name: region-exact-sys-default, template: region, query_suffix: ', exactly as described'}
+- name: region-exact-sys-exact
+  template: region
+  query_suffix: ', exactly as described'
+  system_prompt: >-
+    You are a precise visual grounding assistant. Only locate objects that match every attribute
+    in the description, including category, material and color. Do not locate similar objects.
+- name: region-exact-sys-exact-none
+  template: region
+  query_suffix: ', exactly as described'
+  system_prompt: >-
+    You are a precise visual grounding assistant. Only locate objects that match every attribute
+    in the description, including category, material and color. If no object matches exactly,
+    output no box.
+- name: region-exact-sys-short
+  template: region
+  query_suffix: ', exactly as described'
+  system_prompt: You are a helpful assistant. Only locate exact matches; if there is none, output nothing.
