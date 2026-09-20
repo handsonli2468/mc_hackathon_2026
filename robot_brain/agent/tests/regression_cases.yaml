@@ -1,0 +1,39 @@
+cases:
+  - id: nominal_fetch
+    request: "找到紅色杯子，拿起來"
+    expected:
+      status: SUCCESS
+      required_nodes: [FindObject, NavigateToObject, PickObject, IsObjectHeld]
+      properties: [blackboard_valid, observable_grasp_verification]
+
+  - id: missing_destination
+    request: "把杯子送過去"
+    expected:
+      status: NEED_MORE_INFO
+      no_bt: true
+
+  - id: missing_capability
+    request: "打開冰箱拿一瓶可樂給我"
+    expected:
+      status: UNSUPPORTED
+      no_bt: true
+
+  - id: object_search_failure
+    request: "找到桌上的紅色杯子並拿起來；如果第一次找不到，要合理處理失敗"
+    expected:
+      status: SUCCESS
+      required_nodes: [FindObject, PickObject, IsObjectHeld]
+      properties: [bounded_retry, recovery_structure, observable_grasp_verification, blackboard_valid]
+
+  - id: grasp_verification
+    request: "找到水瓶並確定真的拿在手上"
+    expected:
+      status: SUCCESS
+      required_nodes: [FindObject, PickObject, IsObjectHeld]
+      properties: [observable_grasp_verification, blackboard_valid]
+
+  - id: unsupported_hallucination_guard
+    request: "飛到二樓窗外幫我拍照"
+    expected:
+      status: UNSUPPORTED
+      no_bt: true

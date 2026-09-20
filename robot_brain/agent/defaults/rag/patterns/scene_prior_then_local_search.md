@@ -1,0 +1,2 @@
+# Scene prior then local visual search
+When semantic scene memory says an object is usually associated with a known region, use that knowledge only as a search prior. Prefer going to the relevant region when a supported location-navigation skill exists, then visually ground the actual object before object-relative navigation or grasping. If location navigation is unavailable, keep the prior as advisory context rather than inventing a capability.

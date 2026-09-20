@@ -1,0 +1,17 @@
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Sequence name="mission_sequence">
+      <Sequence name="find_recipient_continuous_search">
+        <VisualizeObject name="select_recipient" object_name="person standing beside the table"/>
+        <Timeout name="find_recipient_search_timeout" msec="60000">
+          <ReactiveFallback name="find_recipient_search_monitor">
+            <IsObjectFound name="verify_recipient_found" object_name="person standing beside the table"/>
+            <Patrol name="patrol_while_searching_for_recipient"/>
+          </ReactiveFallback>
+        </Timeout>
+      </Sequence>
+      <NavigateToDetectedObject name="navigate_to_recipient" speed="normal" standoff="0.05"/>
+      <SetGripper name="release_object" position="0"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

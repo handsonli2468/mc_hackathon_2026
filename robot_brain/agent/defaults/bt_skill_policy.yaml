@@ -1,0 +1,11 @@
+version: '2.0'
+description: Planner exposure policy for the current live BT Engine ABI.
+disabled_nodes: []
+required_planner_nodes:
+  - IsObjectFound
+  - NavigateToDetectedObject
+  - NavigateToPoint
+  - Patrol
+  - RotateInPlace
+  - SetGripper
+  - VisualizeObject

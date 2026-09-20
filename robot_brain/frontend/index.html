@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Robot Brain Comparator</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <h1>Robot Brain Comparator</h1>
+    <p>Adaptive RAG → Qwen planning → TaskPlanIR → BTGenBot-2 → BT Engine</p>
+  </div>
+  <div class="status-grid">
+    <div><span>Server</span><strong id="serverStatus">...</strong></div>
+    <div><span>Planner</span><strong id="plannerStatus">...</strong></div>
+    <div><span>Compiler</span><strong id="compilerStatus">...</strong></div>
+    <div><span>BT Engine</span><strong id="engineStatus">...</strong></div>
+    <div><span>Node Sync</span><strong id="nodeSyncStatus">...</strong></div>
+    <div><span>Skills</span><strong id="skillCount">...</strong></div>
+    <div><span>RAG</span><strong id="ragStatus">...</strong></div>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="panel chat-panel">
+    <div class="panel-title compact-title">
+      <h2>Mission</h2>
+      <button id="newSessionBtn" class="secondary">New session</button>
+    </div>
+    <div class="controls compact-controls">
+      <label>Pipeline
+        <select id="pipelineMode">
+          <option value="hybrid">Hybrid: TaskPlanIR → BTGenBot-2</option>
+          <option value="direct">Direct: Qwen → XML</option>
+          <option value="compare">Compare both</option>
+        </select>
+      </label>
+      <details class="world-state-details">
+        <summary>World state JSON <span class="subtle">(optional)</span></summary>
+        <textarea id="worldState" rows="2" placeholder='{"robot_is_holding_object": false}'></textarea>
+      </details>
+    </div>
+    <div id="chatLog" class="chat-log"></div>
+    <form id="chatForm">
+      <textarea id="messageInput" rows="2" placeholder="例如：找到藍色盒子，走過去，拿起來並確認真的抓住。" required></textarea>
+      <div class="send-row"><span class="badge" id="modeBadge">idle</span><button id="sendBtn">Plan</button></div>
+    </form>
+  </section>
+
+  <section class="panel artifact-panel">
+    <div class="panel-title compact-title">
+      <h2>Planning Artifacts</h2>
+      <div id="candidateButtons" class="candidate-buttons"></div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="summary">Summary</button>
+      <button class="tab" data-tab="ir">TaskPlanIR</button>
+      <button class="tab" data-tab="tree">Tree</button>
+      <button class="tab" data-tab="xml">XML</button>
+      <button class="tab" data-tab="validation">Validation</button>
+      <button class="tab" data-tab="rag">RAG Context</button>
+      <button class="tab" data-tab="timing">Timing</button>
+      <button class="tab" data-tab="execution">Execution</button>
+    </div>
+    <div class="artifact-body">
+      <div id="summaryTab" class="tab-content active"><pre id="summaryView">No result yet.</pre></div>
+      <div id="irTab" class="tab-content"><pre id="irView">No TaskPlanIR yet.</pre></div>
+      <div id="treeTab" class="tab-content"><div id="treeView" class="tree-empty">No BehaviorTree yet.</div></div>
+      <div id="xmlTab" class="tab-content"><pre id="xmlView">No XML yet.</pre></div>
+      <div id="validationTab" class="tab-content"><pre id="validationView">No validation result yet.</pre></div>
+      <div id="ragTab" class="tab-content"><pre id="ragView">No RAG retrieval yet.</pre></div>
+      <div id="timingTab" class="tab-content"><pre id="timingView">No timing trace yet.</pre></div>
+      <div id="executionTab" class="tab-content">
+        <div class="execution-toolbar">
+          <button id="engineRefreshBtn" class="secondary">Refresh</button>
+          <button id="engineCancelBtn" class="danger-button">Cancel</button>
+          <button id="engineReplanBtn" class="secondary">Replan from Failure</button>
+          <button id="engineSyncNodesBtn" class="secondary">Sync /nodes</button>
+        </div>
+
+        <div class="engine-overview">
+          <div class="engine-card engine-state-card">
+            <div class="engine-state-head">
+              <div>
+                <div class="eyebrow">BT Engine run</div>
+                <div class="engine-state-line"><span id="engineRunState" class="engine-state-badge idle">NOT STARTED</span><code id="engineRunId">—</code></div>
+              </div>
+              <div class="engine-timer"><span>elapsed</span><strong id="engineElapsed">0.0 s</strong></div>
+            </div>
+            <div class="engine-meta-grid">
+              <div><span>Endpoint</span><strong id="engineEndpoint">—</strong></div>
+              <div><span>Auth</span><strong id="engineAuthState">—</strong></div>
+              <div><span>Current leaf</span><strong id="engineCurrentLeaf">—</strong></div>
+              <div><span>Trace</span><strong id="engineTraceCount">0 events</strong></div>
+            </div>
+          </div>
+
+          <div class="engine-card">
+            <div class="card-title-row"><h3>Mission phase progress</h3><span id="enginePhaseProgress" class="subtle">0 / 0</span></div>
+            <div id="enginePhaseStrip" class="phase-strip"><span class="subtle">A validated mission starts automatically; live phase status will appear here.</span></div>
+          </div>
+
+          <div class="engine-card">
+            <h3>Running leaves</h3>
+            <div id="engineRunningLeaves" class="chip-list"><span class="subtle">none</span></div>
+          </div>
+
+          <div id="engineFailureCard" class="engine-card failure-card hidden">
+            <h3>Failure / error detail</h3>
+            <div id="engineFailureSummary" class="failure-summary"></div>
+            <div id="engineNotes" class="note-list"></div>
+          </div>
+
+          <div class="engine-card">
+            <div class="card-title-row"><h3>Live trace timeline</h3><span class="subtle">latest first</span></div>
+            <div id="engineTraceTimeline" class="trace-timeline"><span class="subtle">No trace yet.</span></div>
+          </div>
+
+          <details class="engine-card raw-status-card">
+            <summary>Raw engine status</summary>
+            <pre id="engineExecutionView">No engine run yet.</pre>
+          </details>
+
+          <div class="engine-card">
+            <h3>Agent execution events</h3>
+            <div id="executionLog" class="subtle">No execution events yet.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer><span>Session:</span><code id="sessionId">new</code><span>Mission:</span><code id="missionId">none</code></footer>
+<script src="/app.js"></script>
+</body>
+</html>

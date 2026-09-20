@@ -1,0 +1,27 @@
+# v6.4.0
+
+- Added a formal `/api/chat` response model with explicit `bt_generation` and `auto_execution` results, and automatically submits every successfully generated/validated normal mission to the BT Engine. Compare mode and shipped planning/profile tests remain non-executing; the old execute endpoint remains diagnostics-only.
+- Added a deterministic provenance gate that rejects every map-coordinate navigation action unless its coordinates and heading match an actionable Location-RAG navigation candidate retrieved for that mission; only the optional speed may vary.
+- Defined the adaptive gripper baseline: open to 0 when initial state is unknown, use 50 for an ordinary grasp without stronger evidence, and let relevant high-rated Experience RAG guide later task-specific adjustment.
+- Made TaskPlanIR authoritative for leaf-node ports during hybrid BT compilation: compiler-invented optional values (such as numeric `speed="0.3"`) are removed so the engine default applies, while explicit IR values override compiler output.
+- Refreshed the formal snapshot and semantic overlay against the Manta acceptance-time live ABI: `IsObjectFound` now has only `object_name`; `NavigateToDetectedObject` has `speed`, `replan_distance`, `arrive_tolerance`, and `standoff` (default 0.05); `Patrol` has only `speed`.
+- Treat `<SubTree ID="GoHome"/>`-style entries returned by `/nodes?builtin=0` as registered subtree manifests, not custom node types requiring planner semantics.
+- Limited release-data XML validation to shipped source files so empty/generated `agent-runtime/evaluations/*.xml` diagnostics cannot fail the next release check.
+- Corrected the continuous-search unit assertion to reject retry/rotation only inside the search subtree; a later navigation phase may independently use a bounded retry.
+- Avoid writing an empty XML artifact when end-to-end generation returns no tree.
+- Replaced all shipped live-node data with the latest supplied BT Engine contract.
+- Removed old planner exposure for NavigateToObject/IsObjectVisible/IsAtObject/TrackObject/OpenGripper/GraspObject/CloseGripper/RecoveryNode.
+- Enabled reviewed SetGripper(position: int) semantics with the validated 0–100 range; 0 is fully open.
+- Added argument-aware gripper capability rules so acquisition requires position > 0 and release requires position = 0.
+- Migrated visual navigation to VisualizeObject -> IsObjectFound -> NavigateToDetectedObject.
+- Replaced RecoveryNode/AlwaysFailure compilation with standard Fallback + ForceFailure + finite RetryUntilSuccessful.
+- Added Patrol and speed ports to planning/RAG contracts.
+- Added App session-reset and structured post-execution feedback APIs.
+- Added JSON feedback persistence and human-feedback indexing in Experience RAG.
+- Fixed formal-contract comparison of YAML booleans against XML boolean defaults (for example `SubTree._autoremap: false`).
+- Made phase assembly consume the explicit active builtin registry so isolated tests and production compile the same `ForceFailure` recovery structure.
+- Migrated historical regression expectations to the current latest-detection and SetGripper ABI.
+- Clarified node counts in health/sync reports: 7 live custom leaves + 13 builtin nodes = 20 effective nodes.
+- Replaced the obsolete rotate-and-retry visual-search policy with `VisualizeObject -> Timeout(ReactiveFallback(IsObjectFound, Patrol))`.
+- Documented all 13 BehaviorTree.CPP-native nodes and injected their precise semantics into the direct-BT prompt/registry.
+- Added `docker/test_continuous_search.py` to print and persist the complete Manta IR/XML/validation/timing result and optionally call live engine validation.

@@ -1,0 +1,23 @@
+# Historical review scaffold. v6.4 now ships the reviewed position contract.
+# Formal kind/type/default/required values must NOT be copied here; they come from /nodes.
+nodes:
+  SetGripper:
+    planner_enabled: true
+    description: "Set jaw closure: 0 fully open, 100 fully closed."
+    provides: [set_gripper_position, control_gripper, acquire_object, grasp_object, open_gripper, release_object]
+    preconditions: []
+    success_semantics: [gripper_position_command_completed]
+    guarantees: [gripper_position_command_completed]
+    does_not_guarantee: [object_is_held, object_identity]
+    recommended_verification: []
+    verification_required: false
+    possible_failures: [INVALID_POSITION, EXECUTION_FAILED]
+    engine_failure_codes: []
+    engine_failure_codes_known: false
+    resources:
+      - GRIPPER
+    cancellation:
+      supported: true
+    timeout: {}
+    inputs:
+      position: {min: 0, max: 100, unit: percent_closed}

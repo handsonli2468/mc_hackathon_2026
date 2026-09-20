@@ -1,0 +1,19 @@
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Sequence name="mission_sequence">
+      <Sequence name="locate_bottle_continuous_search">
+        <VisualizeObject name="look_for_bottle" object_name="bottle"/>
+        <Timeout name="locate_bottle_search_timeout" msec="60000">
+          <ReactiveFallback name="locate_bottle_search_monitor">
+            <IsObjectFound name="confirm_bottle" object_name="bottle"/>
+            <Patrol name="patrol_while_searching"/>
+          </ReactiveFallback>
+        </Timeout>
+      </Sequence>
+      <Timeout name="approach_bottle_timeout" msec="60000">
+        <NavigateToDetectedObject name="approach_bottle" speed="slow" standoff="0.05"/>
+      </Timeout>
+      <SetGripper name="grasp_bottle" position="60"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

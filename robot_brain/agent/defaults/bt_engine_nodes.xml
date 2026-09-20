@@ -1,0 +1,31 @@
+<root BTCPP_format="4">
+    <TreeNodesModel>
+        <Condition ID="IsObjectFound">
+            <input_port name="object_name" type="std::string">Which object to ask about</input_port>
+        </Condition>
+        <Action ID="NavigateToDetectedObject">
+            <input_port name="speed" type="std::string" default="normal">How fast to drive: slow | normal | fast</input_port>
+            <input_port name="replan_distance" type="double" default="0.050000">Re-send the goal if the reported pose moves more than this, metres</input_port>
+            <input_port name="arrive_tolerance" type="double" default="0.050000">Succeed once the robot is within standoff + this of the latest pose, metres</input_port>
+            <input_port name="standoff" type="double" default="0.050000">Stop this far short of the reported pose, metres. Driving onto the object would put it closer than the onboard camera can see. 0 drives exactly to the pose.</input_port>
+        </Action>
+        <Action ID="NavigateToPoint">
+            <input_port name="yaw_deg" type="std::string" default="">Heading to face on arrival, degrees (0 = +x). Leave empty to face the way you drove.</input_port>
+            <input_port name="speed" type="std::string" default="normal">How fast to drive: slow | normal | fast</input_port>
+            <input_port name="y" type="double">Y in metres, map frame</input_port>
+            <input_port name="x" type="double">X in metres, map frame</input_port>
+        </Action>
+        <Action ID="Patrol">
+            <input_port name="speed" type="std::string" default="normal">How fast to drive: slow | normal | fast</input_port>
+        </Action>
+        <Action ID="RotateInPlace">
+            <input_port name="angle_deg" type="double" default="45.000000">Rotation in degrees, positive = counter-clockwise</input_port>
+        </Action>
+        <Action ID="SetGripper">
+            <input_port name="position" type="int">How far to close the jaws: 0 = fully open, 100 = fully closed</input_port>
+        </Action>
+        <Action ID="VisualizeObject">
+            <input_port name="object_name" type="std::string">What the camera should start looking for, e.g. cup</input_port>
+        </Action>
+    </TreeNodesModel>
+</root>

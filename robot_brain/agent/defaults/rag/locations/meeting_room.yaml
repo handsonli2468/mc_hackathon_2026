@@ -1,0 +1,66 @@
+locations:
+  presentation_area:
+    type: STATIC_LOCATION
+    frame_id: map
+    pose:
+      x: 1.8
+      y: 0.4
+      yaw: 0.0
+    map_version: demo_meeting_room_v1
+    description: Demo placeholder pose for the presentation/display area. Calibrate
+      before real robot use.
+    calibrated: false
+    yaw_unit: rad
+    aliases:
+    - presentation area
+    - display area
+    enabled: true
+  marker_station:
+    type: STATIC_LOCATION
+    frame_id: map
+    pose:
+      x: 1.2
+      y: -0.8
+      yaw: 1.57
+    map_version: demo_meeting_room_v1
+    description: Demo placeholder pose for the whiteboard stationery holder. Calibrate
+      before real robot use.
+    calibrated: false
+    yaw_unit: rad
+    aliases:
+    - marker station
+    - stationery holder
+    - whiteboard marker station
+    enabled: true
+  host_side:
+    type: SEMI_STATIC_LOCATION
+    frame_id: map
+    pose:
+      x: 0.2
+      y: 0.9
+      yaw: -1.57
+    map_version: demo_meeting_room_v1
+    description: Demo search-region anchor for the host side of the table. Person
+      presence always requires visual verification.
+    calibrated: false
+    yaw_unit: rad
+    aliases:
+    - host side
+    - presenter side
+    enabled: true
+  charging_station:
+    type: STATIC_LOCATION
+    frame_id: map
+    pose:
+      x: -1.0
+      y: -0.5
+      yaw: 3.14
+    map_version: demo_meeting_room_v1
+    description: Demo placeholder pose for robot charging/storage. Calibrate before
+      real robot use.
+    calibrated: false
+    yaw_unit: rad
+    aliases:
+    - charging station
+    - robot charging station
+    enabled: true

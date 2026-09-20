@@ -1,0 +1,303 @@
+version: demo-1.0
+blackboard:
+  externally_provided: {}
+skills:
+- id: FindObject
+  kind: ACTION
+  cleanup_eligible: false
+  description: Search for an object matching a natural-language query and return a
+    tracked object reference.
+  provides:
+  - locate_object
+  - search_object
+  inputs:
+    query:
+      type: string
+      required: true
+  outputs:
+    object:
+      type: TrackedObject
+      required: true
+  preconditions: []
+  success_semantics:
+  - search_completed_with_candidate
+  guarantees:
+  - object_reference_returned
+  does_not_guarantee:
+  - object_remains_visible
+  - object_pose_remains_fresh
+  recommended_verification:
+  - IsObjectLocated
+  verification_required: true
+  possible_failures:
+  - OBJECT_NOT_FOUND
+  - PERCEPTION_UNAVAILABLE
+  stale_information:
+  - object_pose
+  side_effects: []
+  resources:
+  - CAMERA
+  cancellation:
+    supported: true
+  timeout:
+    recommended_sec: 20
+- id: IsObjectLocated
+  kind: CONDITION
+  description: Check that a tracked object reference is valid and currently localized.
+  provides:
+  - verify_object_located
+  inputs:
+    object:
+      type: TrackedObject
+      required: true
+  outputs: {}
+  preconditions: []
+  success_semantics:
+  - object_pose_valid
+  guarantees:
+  - object_pose_valid
+  possible_failures:
+  - OBJECT_NOT_LOCALIZED
+  resources: []
+- id: NavigateToObject
+  kind: ACTION
+  cleanup_eligible: false
+  description: Navigate the mobile base to a reachable approach pose near a tracked
+    object.
+  provides:
+  - navigate_to_object
+  - approach_object
+  inputs:
+    object:
+      type: TrackedObject
+      required: true
+  outputs: {}
+  preconditions:
+  - object_pose_valid
+  success_semantics:
+  - navigation_action_completed
+  guarantees: []
+  does_not_guarantee:
+  - robot_is_close_enough_for_manipulation
+  recommended_verification:
+  - IsNearObject
+  verification_required: true
+  possible_failures:
+  - NO_PATH
+  - NAVIGATION_TIMEOUT
+  - OBJECT_MOVED
+  stale_information:
+  - object_pose
+  resources:
+  - BASE
+  cancellation:
+    supported: true
+  timeout:
+    recommended_sec: 60
+- id: IsNearObject
+  kind: CONDITION
+  description: Check whether the robot is within the configured manipulation distance
+    of a tracked object.
+  provides:
+  - verify_near_object
+  inputs:
+    object:
+      type: TrackedObject
+      required: true
+  outputs: {}
+  success_semantics:
+  - robot_near_target
+  guarantees:
+  - robot_near_target
+  possible_failures:
+  - TOO_FAR_FROM_OBJECT
+  resources: []
+- id: PickObject
+  kind: ACTION
+  cleanup_eligible: false
+  description: Attempt to grasp a localized object with the manipulator.
+  provides:
+  - grasp_object
+  - pick_object
+  inputs:
+    object:
+      type: TrackedObject
+      required: true
+  outputs: {}
+  preconditions:
+  - object_pose_valid
+  - robot_near_target
+  - robot_base_stationary
+  success_semantics:
+  - grasp_command_completed
+  guarantees: []
+  does_not_guarantee:
+  - object_is_held
+  recommended_verification:
+  - IsObjectHeld
+  verification_required: true
+  possible_failures:
+  - OBJECT_NOT_VISIBLE
+  - OBJECT_OUT_OF_REACH
+  - NO_VALID_GRASP
+  - EXECUTION_FAILED
+  stale_information:
+  - object_pose
+  side_effects:
+  - arm_pose_changes
+  - gripper_state_changes
+  resources:
+  - ARM
+  - GRIPPER
+  - BASE_STATIONARY
+  cancellation:
+    supported: true
+  timeout:
+    recommended_sec: 30
+- id: IsObjectHeld
+  kind: CONDITION
+  description: Verify that the target object is currently held by the gripper.
+  provides:
+  - verify_object_held
+  inputs:
+    object:
+      type: TrackedObject
+      required: true
+  outputs: {}
+  success_semantics:
+  - object_is_held
+  guarantees:
+  - object_is_held
+  possible_failures:
+  - OBJECT_NOT_HELD
+  resources:
+  - GRIPPER
+- id: NavigateToLocation
+  kind: ACTION
+  cleanup_eligible: false
+  description: Navigate the robot to a named or externally resolved location.
+  provides:
+  - navigate_to_location
+  - transport
+  inputs:
+    location:
+      type: string
+      required: true
+  outputs: {}
+  preconditions: []
+  success_semantics:
+  - navigation_action_completed
+  guarantees: []
+  does_not_guarantee:
+  - robot_pose_satisfies_goal_tolerance
+  recommended_verification:
+  - IsAtLocation
+  verification_required: true
+  possible_failures:
+  - NO_PATH
+  - NAVIGATION_TIMEOUT
+  resources:
+  - BASE
+  cancellation:
+    supported: true
+  timeout:
+    recommended_sec: 90
+- id: IsAtLocation
+  kind: CONDITION
+  description: Verify that the robot is at the requested location within tolerance.
+  provides:
+  - verify_at_location
+  inputs:
+    location:
+      type: string
+      required: true
+  outputs: {}
+  success_semantics:
+  - robot_at_location
+  guarantees:
+  - robot_at_location
+  possible_failures:
+  - NOT_AT_LOCATION
+  resources: []
+- id: PlaceObject
+  kind: ACTION
+  cleanup_eligible: false
+  description: Place a held object at a named target location.
+  provides:
+  - place_object
+  inputs:
+    object:
+      type: TrackedObject
+      required: true
+    location:
+      type: string
+      required: true
+  outputs: {}
+  preconditions:
+  - object_is_held
+  - robot_at_location
+  success_semantics:
+  - place_command_completed
+  guarantees: []
+  does_not_guarantee:
+  - object_is_stably_placed
+  recommended_verification:
+  - IsObjectPlaced
+  verification_required: true
+  possible_failures:
+  - NO_VALID_PLACE_POSE
+  - EXECUTION_FAILED
+  resources:
+  - ARM
+  - GRIPPER
+  cancellation:
+    supported: true
+  timeout:
+    recommended_sec: 30
+- id: IsObjectPlaced
+  kind: CONDITION
+  description: Verify that the target object is no longer held and is at the requested
+    destination.
+  provides:
+  - verify_object_placed
+  inputs:
+    object:
+      type: TrackedObject
+      required: true
+    location:
+      type: string
+      required: true
+  outputs: {}
+  success_semantics:
+  - object_at_destination
+  guarantees:
+  - object_at_destination
+  possible_failures:
+  - OBJECT_NOT_PLACED
+  resources: []
+- id: RotateInPlace
+  kind: ACTION
+  cleanup_eligible: false
+  description: Rotate the mobile base in place by a bounded angle to change the camera
+    viewpoint.
+  provides:
+  - change_search_viewpoint
+  - rotate_in_place
+  inputs:
+    degrees:
+      type: float
+      required: true
+  outputs: {}
+  preconditions: []
+  success_semantics:
+  - rotation_completed
+  guarantees: []
+  possible_failures:
+  - ROTATION_BLOCKED
+  - EXECUTION_FAILED
+  resources:
+  - BASE
+  cancellation:
+    supported: true
+  timeout:
+    recommended_sec: 15

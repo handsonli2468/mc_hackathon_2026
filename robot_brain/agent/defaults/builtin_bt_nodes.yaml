@@ -1,0 +1,74 @@
+version: bt-engine-latest-2026-09
+blackboard:
+  externally_provided: {}
+nodes:
+- id: Sequence
+  kind: Control
+  description: Tick children from left to right. Stop on the first FAILURE or RUNNING child; resume a RUNNING child on the next tick. Return SUCCESS only when every child succeeds. Use for ordered fail-fast mission steps.
+  children: {min: 1}
+- id: ReactiveSequence
+  kind: Control
+  description: Tick children from left to right and restart from child 1 on every tree tick. An earlier condition can therefore halt a later RUNNING child. Use for continuously checked safety/precondition guards, not ordinary one-shot workflows.
+  children: {min: 1}
+- id: Fallback
+  kind: Control
+  description: Tick alternatives from left to right. Stop on the first SUCCESS or RUNNING child; resume a RUNNING child on the next tick. Return FAILURE only when every child fails. Use for ordered alternatives or recovery branches.
+  children: {min: 1}
+- id: ReactiveFallback
+  kind: Control
+  description: Tick alternatives from child 1 on every tree tick. When an earlier condition becomes SUCCESS it halts the later RUNNING branch. Use for condition-first monitoring such as IsObjectFound followed by a long-running Patrol.
+  children: {min: 1}
+- id: Inverter
+  kind: Decorator
+  description: Tick exactly one child; convert SUCCESS to FAILURE and FAILURE to SUCCESS, while propagating RUNNING unchanged. Use only when the logical negation of a condition or subtree is intended.
+  children: {min: 1, max: 1}
+- id: ForceSuccess
+  kind: Decorator
+  description: Tick exactly one child; propagate RUNNING and return SUCCESS after the child terminates, regardless of whether it succeeded or failed. Use only for explicitly optional best-effort behavior.
+  children: {min: 1, max: 1}
+- id: ForceFailure
+  kind: Decorator
+  description: Tick exactly one child; propagate RUNNING and return FAILURE after the child terminates, regardless of its terminal result. Use when a completed branch must deliberately drive a parent fallback/retry path.
+  children: {min: 1, max: 1}
+- id: KeepRunningUntilFailure
+  kind: Decorator
+  description: Tick exactly one child; return RUNNING when the child returns SUCCESS or RUNNING, and return FAILURE only when the child fails. Use for a continuous activity whose failure is the stopping condition; always place generated uses under a finite termination policy.
+  children: {min: 1, max: 1}
+- id: RetryUntilSuccessful
+  kind: Decorator
+  description: Re-tick a child after FAILURE until it succeeds or num_attempts is exhausted; propagate RUNNING. The engine accepts -1 for infinite retry, but Agent-generated trees require a finite positive bound from 1 to 10.
+  children: {min: 1, max: 1}
+  ports:
+    input:
+      num_attempts: {type: int, required: true, min: 1, max: 10}
+- id: Repeat
+  kind: Decorator
+  description: Re-run a child after SUCCESS until num_cycles completes; return FAILURE immediately if the child fails and propagate RUNNING. The engine accepts -1 for infinite repetition, but Agent-generated trees require a finite positive bound from 1 to 10.
+  children: {min: 1, max: 1}
+  ports:
+    input:
+      num_cycles: {type: int, required: true, min: 1, max: 10}
+- id: Delay
+  kind: Decorator
+  description: Return RUNNING until delay_msec has elapsed, then tick exactly one child and propagate its status. Use to delay the start of behavior, not as an execution timeout.
+  children: {min: 1, max: 1}
+  ports:
+    input:
+      delay_msec: {type: unsigned int, required: true, min: 0, max: 60000}
+- id: Timeout
+  kind: Decorator
+  description: Tick exactly one child, but if it remains RUNNING beyond msec halt it and return FAILURE. Use to bound a complete operation or monitoring loop; in a mission Sequence this FAILURE prevents all later steps from running.
+  children: {min: 1, max: 1}
+  ports:
+    input:
+      msec: {type: unsigned int, required: true, min: 1, max: 300000}
+- id: SubTree
+  kind: Structural
+  description: Invoke another BehaviorTree declared in the same XML document by its ID, with explicit blackboard remapping or optional _autoremap. It is a structural XML construct, not an executable leaf; never reference an undeclared tree ID.
+  children: {min: 0, max: 0}
+  attributes:
+    ID: {type: string, required: true}
+  ports:
+    input:
+      _autoremap: {type: bool, required: false, default: false}
+  allow_extra_attributes: true

@@ -1,0 +1,118 @@
+documents:
+- id: meeting_room_overview
+  title: Meeting room semantic layout
+  knowledge_type: STATIC_SCENE
+  content: The tabletop meeting robot operates around a meeting table, presentation
+    display area, whiteboard/stationery area, participant seating, and a charging/storage
+    area. Static scene knowledge may guide search but does not replace live perception
+    for movable objects or people.
+  tags:
+  - meeting
+  - room
+  - table
+  - presentation
+  - whiteboard
+  - seating
+  location_ids: []
+  requires_visual_verification: true
+  enabled: true
+- id: whiteboard_marker_prior
+  title: Whiteboard marker storage prior
+  knowledge_type: LOCATION_PRIOR
+  content: Whiteboard markers and erasers are usually stored at the stationery holder
+    near the whiteboard. Search marker_station first when location navigation is supported,
+    then visually verify the requested marker before approaching or grasping it.
+  tags:
+  - whiteboard
+  - marker
+  - stationery
+  - pen
+  - eraser
+  location_ids:
+  - marker_station
+  confidence: 0.95
+  requires_visual_verification: true
+  enabled: true
+  target_terms:
+  - marker
+  - whiteboard marker
+  - eraser
+- id: presentation_remote_prior
+  title: Presentation remote prior
+  knowledge_type: LOCATION_PRIOR
+  content: The presentation remote and common display accessories are usually in the
+    presentation area near the presentation laptop or display. Treat this as a search
+    prior and visually verify the remote before object-relative navigation.
+  tags:
+  - presentation
+  - remote
+  - laptop
+  - display
+  - adapter
+  location_ids:
+  - presentation_area
+  confidence: 0.9
+  requires_visual_verification: true
+  enabled: true
+  target_terms:
+  - presentation remote
+  - remote
+  - display adapter
+- id: host_seating_prior
+  title: Host seating prior
+  knowledge_type: ROLE_PRIOR
+  content: The meeting host or presenter is often near the display-facing side of
+    the table. This does not prove the current person's location. Use the host_side
+    area only to guide search and visually ground the actual person before navigation.
+  tags:
+  - host
+  - presenter
+  - person
+  - recipient
+  - display
+  - seat
+  location_ids:
+  - host_side
+  confidence: 0.75
+  requires_visual_verification: true
+  enabled: true
+  target_terms:
+  - host
+  - presenter
+- id: meeting_setup_sop
+  title: Meeting setup SOP
+  knowledge_type: PROCEDURAL_SCENE
+  content: For presentation setup, relevant objects often include the presentation
+    remote, display adapter, whiteboard marker, and presentation laptop. Prefer checking
+    their semantic storage areas and verify each movable object with live perception.
+  tags:
+  - meeting
+  - setup
+  - presentation
+  - prepare
+  - remote
+  - adapter
+  - marker
+  location_ids:
+  - presentation_area
+  - marker_station
+  requires_visual_verification: true
+  enabled: true
+- id: meeting_cleanup_sop
+  title: Meeting cleanup SOP
+  knowledge_type: PROCEDURAL_SCENE
+  content: During meeting cleanup, return stationery toward marker_station and presentation
+    accessories toward presentation_area when the required navigation/manipulation
+    capabilities exist. Movable-object presence must still be verified live.
+  tags:
+  - meeting
+  - cleanup
+  - tidy
+  - return
+  - stationery
+  - remote
+  location_ids:
+  - presentation_area
+  - marker_station
+  requires_visual_verification: true
+  enabled: true

@@ -1,0 +1,154 @@
+version: '2.0'
+description: Planner semantics for the current live BT Engine leaves. The live /nodes contract remains authoritative for IDs, kinds, ports, types, and defaults.
+nodes:
+  IsObjectFound:
+    planner_enabled: true
+    description: Poll the continuously running camera search for the named object. In the standard ReactiveFallback search loop, FAILURE means not found yet so Patrol keeps running; SUCCESS means a current object pose exists and interrupts Patrol.
+    provides: [verify_object_found, verify_object_visible, verify_object_located]
+    search_policy_role: observation_condition
+    preconditions: []
+    success_semantics: [object_found_by_perception, object_pose_available]
+    guarantees: [object_found_by_perception, object_pose_available]
+    possible_failures: [OBJECT_NOT_FOUND, PERCEPTION_UNAVAILABLE]
+    stale_information: [detected_object_pose]
+    resources: [CAMERA]
+    object_name_semantics:
+      open_vocabulary: true
+      natural_language_visual_query: true
+      relational_query: true
+    inputs:
+      object_name: {literal_only: true}
+  NavigateToDetectedObject:
+    planner_enabled: true
+    cleanup_eligible: false
+    description: Navigate toward the latest pose published by perception, replanning when that pose moves, and stop at the configured standoff distance.
+    provides: [navigate_to_object, approach_object, reach_detected_object]
+    preconditions: [object_pose_available]
+    success_semantics: [robot_reached_detected_object_standoff]
+    guarantees: [robot_near_target]
+    does_not_guarantee: [object_is_held]
+    recommended_verification: []
+    verification_required: false
+    possible_failures: [DETECTED_POSE_TIMEOUT, NO_PATH, NAVIGATION_TIMEOUT, EXECUTION_FAILED]
+    stale_information: [detected_object_pose]
+    resources: [BASE, CAMERA]
+    cancellation: {supported: true}
+    timeout: {recommended_sec: 60}
+    requires_grounded_target: true
+    consumes_latest_detected_object: true
+    inputs:
+      speed: {allowed_values: [slow, normal, fast]}
+      replan_distance: {min: 0.0, unit: metre}
+      arrive_tolerance: {min: 0.0, unit: metre}
+      standoff: {min: 0.0, unit: metre}
+  NavigateToPoint:
+    planner_enabled: true
+    cleanup_eligible: false
+    description: Navigate to a known position in the map frame at slow, normal, or fast speed, optionally facing yaw_deg on arrival.
+    provides: [navigate_to_location, navigate_to_xy, navigate_to_map_pose, reach_destination]
+    preconditions: [target_location_is_calibrated]
+    success_semantics: [navigation_action_completed, robot_at_map_pose]
+    guarantees: [robot_at_map_pose]
+    recommended_verification: []
+    verification_required: false
+    possible_failures: [NO_PATH, NAVIGATION_TIMEOUT, EXECUTION_FAILED]
+    resources: [BASE]
+    cancellation: {supported: true}
+    timeout: {recommended_sec: 60}
+    suitable_for: [calibrated_static_scene_location, known_map_coordinate, known_waypoint]
+    requires_visual_grounding: false
+    inputs:
+      speed: {allowed_values: [slow, normal, fast]}
+    location_binding:
+      frames: [map]
+      location_types: [STATIC_LOCATION, STATIC_REGION, SEMI_STATIC_LOCATION]
+      arguments:
+        x: {source: x}
+        y: {source: y}
+        yaw_deg: {source: yaw, transform: angle_to_degrees, omit_if_missing: true}
+  Patrol:
+    planner_enabled: true
+    cleanup_eligible: false
+    description: Start the BT Engine's opaque navigation patrol activity. The Agent does not reason about its internal route. In the standard search policy it is the second child of ReactiveFallback and must remain RUNNING while active so IsObjectFound can be checked every tick and halt it on success.
+    provides: [continuous_search_motion, patrol_area, explore_area, search_area]
+    search_policy_role: continuous_patrol
+    expected_running_while_active: true
+    preconditions: []
+    success_semantics: [patrol_activity_ended]
+    guarantees: []
+    does_not_guarantee: [object_found_by_perception, patrol_route_geometry]
+    recommended_verification: []
+    verification_required: false
+    possible_failures: [NO_PATH, NAVIGATION_TIMEOUT, EXECUTION_FAILED]
+    resources: [BASE]
+    cancellation: {supported: true}
+    timeout: {recommended_sec: 60}
+    inputs:
+      speed: {allowed_values: [slow, normal, fast]}
+  RotateInPlace:
+    planner_enabled: true
+    cleanup_eligible: false
+    description: Rotate the mobile base by angle_deg; positive angles are counter-clockwise.
+    provides: [change_search_viewpoint, rotate_in_place]
+    preconditions: []
+    success_semantics: [rotation_completed]
+    guarantees: []
+    possible_failures: [ROTATION_BLOCKED, EXECUTION_FAILED]
+    resources: [BASE]
+    cancellation: {supported: true}
+    timeout: {recommended_sec: 15}
+  SetGripper:
+    planner_enabled: true
+    cleanup_eligible: false
+    description: Set jaw closure to an integer percentage. Position 0 fully opens the gripper; 100 fully closes it. Open to 0 first when the initial jaw state is unknown. For an ordinary grasp without object-specific evidence or relevant high-rated Experience RAG, start at 50; intermediate values support later experience-based adjustment.
+    provides: [set_gripper_position, control_gripper, acquire_object, grasp_object, open_gripper, release_object]
+    capability_rules:
+      acquire_object: {port: position, min_exclusive: 0}
+      grasp_object: {port: position, min_exclusive: 0}
+      open_gripper: {port: position, equals: 0}
+      release_object: {port: position, equals: 0}
+    preconditions: []
+    success_semantics: [gripper_position_command_completed]
+    guarantees: [gripper_position_command_completed]
+    does_not_guarantee: [object_is_held, object_identity]
+    recommended_verification: []
+    verification_required: false
+    possible_failures: [INVALID_POSITION, EXECUTION_FAILED]
+    engine_failure_codes: []
+    engine_failure_codes_known: false
+    side_effects: [gripper_state_changes]
+    resources: [GRIPPER]
+    cancellation: {supported: true}
+    object_identity_input: false
+    inputs:
+      position: {min: 0, max: 100, unit: percent_closed}
+  VisualizeObject:
+    planner_enabled: true
+    cleanup_eligible: false
+    description: Trigger the camera to begin continuously searching for the specified open-vocabulary object or relational visual query. SUCCESS means the search request was accepted; the camera then keeps publishing pose updates until changed or stopped, so this node does not mean the object was found.
+    provides: [trigger_continuous_object_search, search_object, locate_object, visualize_object]
+    continuous_search_trigger: true
+    ensure_state_precheck_allowed: false
+    search_policy:
+      condition: IsObjectFound
+      activity: Patrol
+      control: ReactiveFallback
+      timeout_sec: 60
+      timeout_outcome: MISSION_FAILURE
+    preconditions: []
+    success_semantics: [camera_search_request_accepted]
+    guarantees: [camera_search_active_for_object_query]
+    does_not_guarantee: [object_found_by_perception]
+    recommended_verification: [IsObjectFound]
+    verification_required: true
+    possible_failures: [OBJECT_NOT_FOUND, PERCEPTION_UNAVAILABLE, EXECUTION_FAILED]
+    stale_information: [detected_object_pose]
+    resources: [CAMERA]
+    cancellation: {supported: true}
+    timeout: {recommended_sec: 60, scope: continuous_search_policy}
+    object_name_semantics:
+      open_vocabulary: true
+      natural_language_visual_query: true
+      relational_query: true
+    inputs:
+      object_name: {literal_only: true}

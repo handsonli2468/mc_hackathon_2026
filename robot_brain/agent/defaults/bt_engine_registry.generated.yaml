@@ -1,0 +1,65 @@
+version: bt-engine-live-generated-v2
+source: GET /nodes?builtin=0
+nodes:
+- id: IsObjectFound
+  kind: CONDITION
+  description: ''
+  ports:
+    input:
+      object_name: {type: 'std::string', required: true, description: Which object to ask about}
+    output: {}
+    inout: {}
+- id: NavigateToDetectedObject
+  kind: ACTION
+  description: ''
+  ports:
+    input:
+      speed: {type: 'std::string', required: false, default: normal, description: 'How fast to drive: slow | normal | fast'}
+      replan_distance: {type: double, required: false, default: 0.05, description: 'Re-send the goal if the reported pose moves more than this, metres'}
+      arrive_tolerance: {type: double, required: false, default: 0.05, description: 'Succeed once the robot is within standoff + this of the latest pose, metres'}
+      standoff: {type: double, required: false, default: 0.05, description: 'Stop this far short of the reported pose, metres'}
+    output: {}
+    inout: {}
+- id: NavigateToPoint
+  kind: ACTION
+  description: ''
+  ports:
+    input:
+      yaw_deg: {type: 'std::string', required: false, default: '', description: 'Heading to face on arrival, degrees; empty keeps driving heading'}
+      speed: {type: 'std::string', required: false, default: normal, description: 'How fast to drive: slow | normal | fast'}
+      y: {type: double, required: true, description: 'Y in metres, map frame'}
+      x: {type: double, required: true, description: 'X in metres, map frame'}
+    output: {}
+    inout: {}
+- id: Patrol
+  kind: ACTION
+  description: ''
+  ports:
+    input:
+      speed: {type: 'std::string', required: false, default: normal, description: 'How fast to drive: slow | normal | fast'}
+    output: {}
+    inout: {}
+- id: RotateInPlace
+  kind: ACTION
+  description: ''
+  ports:
+    input:
+      angle_deg: {type: double, required: false, default: 45.0, description: 'Rotation in degrees; positive is counter-clockwise'}
+    output: {}
+    inout: {}
+- id: SetGripper
+  kind: ACTION
+  description: ''
+  ports:
+    input:
+      position: {type: int, required: true, description: 'How far to close the jaws: 0 = fully open, 100 = fully closed'}
+    output: {}
+    inout: {}
+- id: VisualizeObject
+  kind: ACTION
+  description: ''
+  ports:
+    input:
+      object_name: {type: 'std::string', required: true, description: 'What the camera should start looking for, e.g. cup'}
+    output: {}
+    inout: {}
