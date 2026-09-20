@@ -1,0 +1,25 @@
+services:
+    uros-agent:
+      build:
+        dockerfile: Dockerfile.uros_agent
+      image: uros-agent:latest
+      container_name: uros-agent
+      tty: true
+      network_mode: host
+      ipc: host
+      privileged: true
+      stdin_open: true
+      stop_grace_period: &STOP_GRACE_PERIOD 1s
+
+      volumes:
+        - /dev:/dev
+
+      environment:
+        - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+        - AGENT_TYPE=${AGENT_TYPE:-serial}
+        - AGENT_BAUD_RATE=${AGENT_BAUD_RATE:-1000000}
+        - AGENT_DEVICE=${AGENT_DEVICE:-/dev/ttyAMA0}
+
+      entrypoint: ["/bin/bash", "-c", "/root/uros-agent-ws/uros-agent-start.sh"]
+      command: ["/bin/bash"]
+

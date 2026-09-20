@@ -1,0 +1,63 @@
+FROM ubuntu:22.04 AS base
+
+ARG USERNAME=user
+ARG USERID=1000
+ARG USERGID=${USERID}
+ARG SHELL=bash
+ARG DEBIAN_FRONTEND=noninteractive
+
+ENV USERNAME=${USERNAME}
+ENV SHELL=/bin/${SHELL}
+ENV TERM=xterm-256color
+ENV LC_ALL=en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV ROS_DISTRO=humble
+
+RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=private \
+    apt-get update && apt-get install -y \
+    sudo \
+    vim \
+    curl \
+    wget \
+    tmux \
+    htop \
+    git \
+    git-extras \
+    gnupg2 \
+    net-tools \
+    build-essential \
+    cmake \
+    locales \
+    python3-pip \
+    python3-setuptools && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY script/install-ros2.sh /tmp/install-ros2.sh
+RUN --mount=type=cache,target=/var/cache/apt,sharing=private \
+    chmod +x /tmp/install-ros2.sh && \
+    ./tmp/install-ros2.sh && \
+    rm /tmp/install-ros2.sh
+
+FROM base AS build
+
+WORKDIR /ws
+
+COPY script/install-uros-agent.sh /ws/install-uros-agent.sh
+RUN --mount=type=cache,target=/var/cache/apt,sharing=private \
+    chmod +x /ws/install-uros-agent.sh && \
+    ./install-uros-agent.sh
+
+FROM base AS deploy
+
+WORKDIR /root/uros-agent-ws
+COPY --from=build /ws/install /root/uros-agent-ws/install
+
+RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
+    echo "source /root/uros-agent-ws/install/setup.bash" >> /root/.bashrc
+
+COPY ./script/uros-agent-start.sh /root/uros-agent-ws/uros-agent-start.sh
+RUN chmod +x /root/uros-agent-ws/uros-agent-start.sh
+
+CMD ["/bin/bash"]

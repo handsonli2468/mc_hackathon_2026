@@ -1,0 +1,69 @@
+services:
+  robot-localization:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: robot-localization:humble
+    network_mode: host
+    ipc: host
+    init: true
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    volumes:
+      - ../config:/config:ro
+    command:
+      - bash
+      - -c
+      - |
+        bridge_pid=
+        odom_pid=
+        map_pid=
+
+        shutdown() {
+          trap - TERM INT
+          if [[ -n "$$bridge_pid" ]]; then
+            kill -TERM "$$bridge_pid" 2>/dev/null || true
+          fi
+          if [[ -n "$$odom_pid" ]]; then
+            kill -TERM "$$odom_pid" 2>/dev/null || true
+          fi
+          if [[ -n "$$map_pid" ]]; then
+            kill -TERM "$$map_pid" 2>/dev/null || true
+          fi
+          if [[ -n "$$bridge_pid" ]]; then
+            wait "$$bridge_pid" 2>/dev/null || true
+          fi
+          if [[ -n "$$odom_pid" ]]; then
+            wait "$$odom_pid" 2>/dev/null || true
+          fi
+          if [[ -n "$$map_pid" ]]; then
+            wait "$$map_pid" 2>/dev/null || true
+          fi
+        }
+
+        python3 /opt/robot-localization/nodes/mcu_odom_timestamp_bridge.py --ros-args \
+          -p input_topic:=wheel/odom \
+          -p output_topic:=wheel/odom_stamped \
+          -p use_sim_time:=${USE_SIM_TIME:-false} &
+        bridge_pid=$$!
+
+        ros2 run robot_localization ekf_node --ros-args \
+          --params-file /config/ekf.yaml \
+          --remap __node:=ekf_filter_node_odom \
+          --remap odometry/filtered:=odometry/local \
+          -p use_sim_time:=${USE_SIM_TIME:-false} &
+        odom_pid=$$!
+
+        ros2 run robot_localization ekf_node --ros-args \
+          --params-file /config/ekf.yaml \
+          --remap __node:=ekf_filter_node_map \
+          --remap odometry/filtered:=odometry/global \
+          -p use_sim_time:=${USE_SIM_TIME:-false} &
+        map_pid=$$!
+
+        trap shutdown TERM INT
+        wait -n "$$bridge_pid" "$$odom_pid" "$$map_pid"
+        status=$$?
+        shutdown
+        exit "$$status"
